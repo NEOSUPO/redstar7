@@ -16,7 +16,6 @@ const EXPOSURE = [0.72, 1.02, 1.32];
 const TILE_MM = 700;
 const PERSON_MM = 1630;
 const WALK_MPS = 1300;
-const BRISK_MPS = 1700;
 const STEP_MM = 680;
 
 export function createView3d(canvas, store, ui) {
@@ -856,7 +855,7 @@ export function createView3d(canvas, store, ui) {
   }
 
   function personShown() {
-    return ui.tab === "present" && ui.showWalker !== false && !!actor;
+    return ui.tab === "present" && mode !== "walk" && ui.showWalker !== false && !!actor;
   }
 
   function canWalk(x, z) {
@@ -883,15 +882,10 @@ export function createView3d(canvas, store, ui) {
 
   function poseActor() {
     if (!actor) return;
-    const show = ui.tab === "present" && ui.showWalker !== false;
+    const show = personShown();
     actor.visible = show;
     if (!show) return;
     const body = ensureWalker();
-    if (mode === "walk" && walk) {
-      body.x = walk.x;
-      body.z = walk.z;
-      body.yaw = walk.yaw;
-    }
     const lift = floorLift(body.x, body.z);
     const bob = body.moving ? Math.abs(Math.sin(body.phase)) * 22 : 0;
     actor.position.set(body.x, lift + bob, body.z);
@@ -948,32 +942,11 @@ export function createView3d(canvas, store, ui) {
     actor.add(mesh);
     scene.add(actor);
     ensureWalker();
-    if (mode === "walk" && walk && walker) {
-      walker.x = walk.x;
-      walker.z = walk.z;
-      walker.yaw = walk.yaw;
-      applyWalk();
-    }
     poseActor();
   }
 
   function applyWalk() {
     if (!walk) return;
-    if (personShown()) {
-      const lift = floorLift(walk.x, walk.z);
-      const back = 3400;
-      const camY = lift + 1500 - walk.pitch * 800;
-      camera.position.set(
-        walk.x - Math.sin(walk.yaw) * back,
-        camY,
-        walk.z - Math.cos(walk.yaw) * back,
-      );
-      controls.target.set(walk.x, lift + PERSON_MM * 0.62, walk.z);
-      camera.lookAt(controls.target);
-      poseActor();
-      syncSpinRoom();
-      return;
-    }
     const eye = eyeY(walk.x, walk.z);
     const dist = 3000;
     const cp = Math.cos(walk.pitch);
@@ -1012,26 +985,18 @@ export function createView3d(canvas, store, ui) {
       if (!turnRight && (held.has("d") || held.has("arrowright"))) side += 1;
       if (!turnLeft && (held.has("a") || held.has("arrowleft"))) side -= 1;
       const len = Math.hypot(forward, side);
-      const follow = personShown();
       if (len) {
-        const speed = (follow ? (held.has("shift") ? BRISK_MPS : WALK_MPS) : (held.has("shift") ? 4200 : 1800)) * dt;
-        const nx = walk.x + (Math.sin(walk.yaw) * forward - Math.cos(walk.yaw) * side) / len * speed;
-        const nz = walk.z + (Math.cos(walk.yaw) * forward + Math.sin(walk.yaw) * side) / len * speed;
-        if (!follow || canWalk(nx, nz)) {
-          walk.x = nx;
-          walk.z = nz;
-          if (follow) {
-            ensureWalker().phase += (speed / STEP_MM) * Math.PI * 2;
-            stepped = true;
-          }
-        }
+        const speed = (held.has("shift") ? 4200 : 1800) * dt;
+        walk.x += (Math.sin(walk.yaw) * forward - Math.cos(walk.yaw) * side) / len * speed;
+        walk.z += (Math.cos(walk.yaw) * forward + Math.sin(walk.yaw) * side) / len * speed;
+        stepped = true;
       }
       if (turnLeft) walk.yaw += 1.5 * dt;
       if (turnRight) walk.yaw -= 1.5 * dt;
-      if (follow && walker) walker.moving = stepped;
       if (len || turnLeft || turnRight) applyWalk();
     }
-    if (walker && !stepped) walker.moving = false;
+    if (mode === "sky" && ui.tab === "present" && !canvas.hidden) driveActor(dt);
+    else if (walker && !stepped) walker.moving = false;
     poseActor();
     if (doorLeaves.length && Math.abs(doorAmount - doorTarget) > 0.001) {
       const step = 1.8 * dt;
@@ -1191,10 +1156,8 @@ export function createView3d(canvas, store, ui) {
     const frame = mapProjection();
     const nextX = frame.minX + (event.clientX - rect.left - frame.originX) / frame.scale;
     const nextZ = frame.minY + (event.clientY - rect.top - frame.originY) / frame.scale;
-    if (!personShown() || canWalk(nextX, nextZ)) {
-      walk.x = nextX;
-      walk.z = nextZ;
-    }
+    walk.x = nextX;
+    walk.z = nextZ;
     applyWalk();
     syncWalkMap();
   });
@@ -1205,33 +1168,23 @@ export function createView3d(canvas, store, ui) {
     if (mode === "walk") {
       controls.enabled = false;
       if (enteringWalk) {
-        if (personShown()) {
-          const body = ensureWalker();
-          walk = { x: body.x, z: body.z, yaw: body.yaw, pitch: -0.12 };
-        } else {
-          const faceX = controls.target.x - camera.position.x;
-          const faceZ = controls.target.z - camera.position.z;
-          const yaw = Math.atan2(faceX, faceZ);
-          const back = 1800;
-          walk = {
-            x: controls.target.x - Math.sin(yaw) * back,
-            z: controls.target.z - Math.cos(yaw) * back,
-            yaw,
-            pitch: -0.08,
-          };
-        }
+        const faceX = controls.target.x - camera.position.x;
+        const faceZ = controls.target.z - camera.position.z;
+        const yaw = Math.atan2(faceX, faceZ);
+        const back = 1800;
+        walk = {
+          x: controls.target.x - Math.sin(yaw) * back,
+          z: controls.target.z - Math.cos(yaw) * back,
+          yaw,
+          pitch: -0.08,
+        };
       } else if (!walk) walk = walkFromCamera();
       applyWalk();
       syncWalkMap();
       return;
     }
     const stand = walk;
-    if (stand && walker) {
-      walker.x = stand.x;
-      walker.z = stand.z;
-      walker.yaw = stand.yaw;
-      walker.moving = false;
-    }
+    if (walker) walker.moving = false;
     walk = null;
     look = null;
     controls.enabled = true;
@@ -1270,12 +1223,6 @@ export function createView3d(canvas, store, ui) {
         yaw: Math.atan2(cx - x, cz - z),
         pitch: -0.08,
       };
-      if (walker) {
-        walker.x = x;
-        walker.z = z;
-        walker.yaw = walk.yaw;
-        walker.moving = false;
-      }
       applyWalk();
       return;
     }
@@ -1319,10 +1266,62 @@ export function createView3d(canvas, store, ui) {
     return "";
   }
 
+  function driveActor(dt) {
+    const body = ensureWalker();
+    if (!actor || ui.showWalker === false || !held.size) {
+      body.moving = false;
+      return;
+    }
+    const turnLeft = held.has("shift") && held.has("arrowleft");
+    const turnRight = held.has("shift") && held.has("arrowright");
+    let forward = 0;
+    let side = 0;
+    if (held.has("w") || held.has("arrowup")) forward += 1;
+    if (held.has("s") || held.has("arrowdown")) forward -= 1;
+    if (!turnRight && (held.has("d") || held.has("arrowright"))) side += 1;
+    if (!turnLeft && (held.has("a") || held.has("arrowleft"))) side -= 1;
+    const len = Math.hypot(forward, side);
+    let moving = false;
+    if (len) {
+      const speed = WALK_MPS * dt;
+      const nx = body.x + (Math.sin(body.yaw) * forward - Math.cos(body.yaw) * side) / len * speed;
+      const nz = body.z + (Math.cos(body.yaw) * forward + Math.sin(body.yaw) * side) / len * speed;
+      if (canWalk(nx, nz)) {
+        body.x = nx;
+        body.z = nz;
+        body.phase += (speed / STEP_MM) * Math.PI * 2;
+        moving = true;
+      }
+    }
+    if (turnLeft) body.yaw += 1.5 * dt;
+    if (turnRight) body.yaw -= 1.5 * dt;
+    body.moving = moving;
+  }
+
   window.addEventListener("keydown", (event) => {
-    if (mode !== "walk") return;
     if (document.querySelector("dialog[open]")) return;
     if (event.target instanceof Element && event.target.closest("input, textarea, select")) return;
+    const onReport = ui.tab === "present" && !canvas.hidden;
+    if (onReport && event.key.toLowerCase() === "h" && !event.repeat && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      event.preventDefault();
+      ui.setShowWalker(ui.showWalker === false);
+      return;
+    }
+    const skyMove = onReport && mode === "sky" && ui.showWalker !== false;
+    if (skyMove) {
+      if (event.altKey || event.metaKey || event.ctrlKey) return;
+      if (event.key.toLowerCase() === "shift") {
+        held.add("shift");
+        return;
+      }
+      const key = moveKey(event);
+      if (!key || key === "q" || key === "e") return;
+      held.add(key);
+      if (event.shiftKey) held.add("shift");
+      event.preventDefault();
+      return;
+    }
+    if (mode !== "walk") return;
     if (event.key === "Control") {
       turnModifier = true;
       return;

@@ -14,6 +14,10 @@ import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 const BRIGHTNESS = [0.45, 0.85, 1.25];
 const EXPOSURE = [0.72, 1.02, 1.32];
 const TILE_MM = 700;
+const PERSON_MM = 1630;
+const WALK_MPS = 1300;
+const BRISK_MPS = 1700;
+const STEP_MM = 680;
 
 export function createView3d(canvas, store, ui) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -44,6 +48,8 @@ export function createView3d(canvas, store, ui) {
   let roughnessMap = null;
   let mode = "sky";
   let walk = null;
+  let actor = null;
+  let walker = null;
   let look = null;
   const held = new Set();
   let turnModifier = false;
@@ -837,16 +843,137 @@ export function createView3d(canvas, store, ui) {
   }
 
   function eyeY(x, z) {
+    return 1600 + floorLift(x, z);
+  }
+
+  function floorLift(x, z) {
     const plan = store.get();
     let lift = 0;
     for (const room of plan.rooms || []) {
       if (pointInRoom(room, x, z)) lift = Math.max(lift, Number(room.raisedFloor) || 0);
     }
-    return 1600 + lift;
+    return lift;
+  }
+
+  function personShown() {
+    return ui.tab === "present" && ui.showWalker !== false && !!actor;
+  }
+
+  function canWalk(x, z) {
+    const plan = store.get();
+    const rooms = plan.rooms || [];
+    if (!rooms.length) return true;
+    if (rooms.some((room) => pointInRoom(room, x, z))) return true;
+    for (const opening of plan.openings || []) {
+      const room = rooms.find((row) => row.id === opening.roomId);
+      if (!room) continue;
+      const center = openingCenter(room, opening);
+      if (Math.hypot(center.x - x, center.y - z) < (Number(opening.w) || 0) * 0.5 + 220) return true;
+    }
+    return false;
+  }
+
+  function ensureWalker() {
+    if (walker) return walker;
+    const rooms = store.get().rooms || [];
+    const spot = rooms.length ? centroid(rooms[0]) : { x: 3000, y: 2000 };
+    walker = { x: spot.x, z: spot.y, yaw: 0, phase: 0, moving: false };
+    return walker;
+  }
+
+  function poseActor() {
+    if (!actor) return;
+    const show = ui.tab === "present" && ui.showWalker !== false;
+    actor.visible = show;
+    if (!show) return;
+    const body = ensureWalker();
+    if (mode === "walk" && walk) {
+      body.x = walk.x;
+      body.z = walk.z;
+      body.yaw = walk.yaw;
+    }
+    const lift = floorLift(body.x, body.z);
+    const bob = body.moving ? Math.abs(Math.sin(body.phase)) * 22 : 0;
+    actor.position.set(body.x, lift + bob, body.z);
+    actor.rotation.y = body.yaw;
+    actor.rotation.x = body.moving ? Math.sin(body.phase) * 0.04 : 0;
+    actor.rotation.z = body.moving ? Math.sin(body.phase * 0.5) * 0.035 : 0;
+  }
+
+  function accessorArray(gltf, binStart, buffer, index, components) {
+    const acc = gltf.accessors[index];
+    const bv = gltf.bufferViews[acc.bufferView];
+    const start = binStart + (bv.byteOffset || 0) + (acc.byteOffset || 0);
+    if (acc.componentType === 5125) return new Uint32Array(buffer, start, acc.count);
+    if (acc.componentType === 5123) return new Uint16Array(buffer, start, acc.count);
+    return new Float32Array(buffer, start, acc.count * components);
+  }
+
+  async function loadActor() {
+    const response = await fetch("./models/arun-light.glb");
+    if (!response.ok) return;
+    const buffer = await response.arrayBuffer();
+    const view = new DataView(buffer);
+    const jsonLen = view.getUint32(12, true);
+    const gltf = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 20, jsonLen)));
+    const binStart = 28 + jsonLen;
+    const prim = gltf.meshes[0].primitives[0];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(accessorArray(gltf, binStart, buffer, prim.attributes.POSITION, 3), 3));
+    geometry.setAttribute("normal", new THREE.BufferAttribute(accessorArray(gltf, binStart, buffer, prim.attributes.NORMAL, 3), 3));
+    geometry.setAttribute("uv", new THREE.BufferAttribute(accessorArray(gltf, binStart, buffer, prim.attributes.TEXCOORD_0, 2), 2));
+    geometry.setIndex(new THREE.BufferAttribute(accessorArray(gltf, binStart, buffer, prim.indices, 1), 1));
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox;
+    const scale = PERSON_MM / Math.max(1, box.max.y - box.min.y);
+    const image = gltf.images[0];
+    const imageView = gltf.bufferViews[image.bufferView];
+    const jpeg = buffer.slice(binStart + (imageView.byteOffset || 0), binStart + (imageView.byteOffset || 0) + imageView.byteLength);
+    const texture = new THREE.Texture(await createImageBitmap(new Blob([jpeg], { type: image.mimeType || "image/jpeg" })));
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.flipY = false;
+    texture.anisotropy = 8;
+    texture.needsUpdate = true;
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+      map: texture,
+      roughness: 0.86,
+      metalness: 0,
+      side: THREE.DoubleSide,
+    }));
+    mesh.scale.setScalar(scale);
+    mesh.position.y = -box.min.y * scale;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    actor = new THREE.Group();
+    actor.add(mesh);
+    scene.add(actor);
+    ensureWalker();
+    if (mode === "walk" && walk && walker) {
+      walker.x = walk.x;
+      walker.z = walk.z;
+      walker.yaw = walk.yaw;
+      applyWalk();
+    }
+    poseActor();
   }
 
   function applyWalk() {
     if (!walk) return;
+    if (personShown()) {
+      const lift = floorLift(walk.x, walk.z);
+      const back = 3400;
+      const camY = lift + 1500 - walk.pitch * 800;
+      camera.position.set(
+        walk.x - Math.sin(walk.yaw) * back,
+        camY,
+        walk.z - Math.cos(walk.yaw) * back,
+      );
+      controls.target.set(walk.x, lift + PERSON_MM * 0.62, walk.z);
+      camera.lookAt(controls.target);
+      poseActor();
+      syncSpinRoom();
+      return;
+    }
     const eye = eyeY(walk.x, walk.z);
     const dist = 3000;
     const cp = Math.cos(walk.pitch);
@@ -874,6 +1001,7 @@ export function createView3d(canvas, store, ui) {
 
   function frame(now) {
     const dt = Math.min(0.05, (now - (frame.last || now)) / 1000);
+    let stepped = false;
     if (mode === "walk" && walk && held.size) {
       const turnLeft = held.has("q") || (turnModifier && held.has("arrowleft"));
       const turnRight = held.has("e") || (turnModifier && held.has("arrowright"));
@@ -884,15 +1012,27 @@ export function createView3d(canvas, store, ui) {
       if (!turnRight && (held.has("d") || held.has("arrowright"))) side += 1;
       if (!turnLeft && (held.has("a") || held.has("arrowleft"))) side -= 1;
       const len = Math.hypot(forward, side);
+      const follow = personShown();
       if (len) {
-        const speed = (held.has("shift") ? 4200 : 1800) * dt;
-        walk.x += (Math.sin(walk.yaw) * forward - Math.cos(walk.yaw) * side) / len * speed;
-        walk.z += (Math.cos(walk.yaw) * forward + Math.sin(walk.yaw) * side) / len * speed;
+        const speed = (follow ? (held.has("shift") ? BRISK_MPS : WALK_MPS) : (held.has("shift") ? 4200 : 1800)) * dt;
+        const nx = walk.x + (Math.sin(walk.yaw) * forward - Math.cos(walk.yaw) * side) / len * speed;
+        const nz = walk.z + (Math.cos(walk.yaw) * forward + Math.sin(walk.yaw) * side) / len * speed;
+        if (!follow || canWalk(nx, nz)) {
+          walk.x = nx;
+          walk.z = nz;
+          if (follow) {
+            ensureWalker().phase += (speed / STEP_MM) * Math.PI * 2;
+            stepped = true;
+          }
+        }
       }
       if (turnLeft) walk.yaw += 1.5 * dt;
       if (turnRight) walk.yaw -= 1.5 * dt;
+      if (follow && walker) walker.moving = stepped;
       if (len || turnLeft || turnRight) applyWalk();
     }
+    if (walker && !stepped) walker.moving = false;
+    poseActor();
     if (doorLeaves.length && Math.abs(doorAmount - doorTarget) > 0.001) {
       const step = 1.8 * dt;
       doorAmount = doorAmount < doorTarget ? Math.min(doorTarget, doorAmount + step) : Math.max(doorTarget, doorAmount - step);
@@ -1049,8 +1189,12 @@ export function createView3d(canvas, store, ui) {
     event.stopPropagation();
     const rect = map.getBoundingClientRect();
     const frame = mapProjection();
-    walk.x = frame.minX + (event.clientX - rect.left - frame.originX) / frame.scale;
-    walk.z = frame.minY + (event.clientY - rect.top - frame.originY) / frame.scale;
+    const nextX = frame.minX + (event.clientX - rect.left - frame.originX) / frame.scale;
+    const nextZ = frame.minY + (event.clientY - rect.top - frame.originY) / frame.scale;
+    if (!personShown() || canWalk(nextX, nextZ)) {
+      walk.x = nextX;
+      walk.z = nextZ;
+    }
     applyWalk();
     syncWalkMap();
   });
@@ -1061,22 +1205,33 @@ export function createView3d(canvas, store, ui) {
     if (mode === "walk") {
       controls.enabled = false;
       if (enteringWalk) {
-        const faceX = controls.target.x - camera.position.x;
-        const faceZ = controls.target.z - camera.position.z;
-        const yaw = Math.atan2(faceX, faceZ);
-        const back = 1800;
-        walk = {
-          x: controls.target.x - Math.sin(yaw) * back,
-          z: controls.target.z - Math.cos(yaw) * back,
-          yaw,
-          pitch: -0.08,
-        };
+        if (personShown()) {
+          const body = ensureWalker();
+          walk = { x: body.x, z: body.z, yaw: body.yaw, pitch: -0.12 };
+        } else {
+          const faceX = controls.target.x - camera.position.x;
+          const faceZ = controls.target.z - camera.position.z;
+          const yaw = Math.atan2(faceX, faceZ);
+          const back = 1800;
+          walk = {
+            x: controls.target.x - Math.sin(yaw) * back,
+            z: controls.target.z - Math.cos(yaw) * back,
+            yaw,
+            pitch: -0.08,
+          };
+        }
       } else if (!walk) walk = walkFromCamera();
       applyWalk();
       syncWalkMap();
       return;
     }
     const stand = walk;
+    if (stand && walker) {
+      walker.x = stand.x;
+      walker.z = stand.z;
+      walker.yaw = stand.yaw;
+      walker.moving = false;
+    }
     walk = null;
     look = null;
     controls.enabled = true;
@@ -1115,6 +1270,12 @@ export function createView3d(canvas, store, ui) {
         yaw: Math.atan2(cx - x, cz - z),
         pitch: -0.08,
       };
+      if (walker) {
+        walker.x = x;
+        walker.z = z;
+        walker.yaw = walk.yaw;
+        walker.moving = false;
+      }
       applyWalk();
       return;
     }
@@ -1199,6 +1360,8 @@ export function createView3d(canvas, store, ui) {
   store.subscribe(rebuild);
   let hidePlaced = ui.tab === "layout" && ui.showPlaced === false;
   ui.subscribe(() => {
+    poseActor();
+    if (mode === "walk") applyWalk();
     const nextHide = ui.tab === "layout" && ui.showPlaced === false;
     if ((ui.tab === "present") === hq && nextHide === hidePlaced) return;
     hidePlaced = nextHide;
@@ -1207,6 +1370,8 @@ export function createView3d(canvas, store, ui) {
   resize();
   rebuild();
   fit();
+  ensureWalker();
+  loadActor();
   frame(performance.now());
 
   function getPose() {

@@ -13,7 +13,7 @@ const store = createStore();
 const ui = createController();
 const sidebar = document.querySelector("#sidebar");
 const view2d = createView2d(document.querySelector("#view2d"), store, ui);
-const FOLD_KEY = "neosupo-star-beta6-folds";
+const FOLD_KEY = "neosupo-star-beta7-folds";
 
 function readFolds() {
   try {
@@ -152,7 +152,7 @@ document.querySelector("#form-new").addEventListener("submit", (event) => {
   });
   view2d.fit();
 });
-const PLAN_LIST_KEY = "neosupo-star-beta6-plan-list";
+const PLAN_LIST_KEY = "neosupo-star-beta7-plan-list";
 const planList = loadPlanListPref();
 document.querySelector("#plan-list").addEventListener("click", () => {
   const all = sortedPlans();
@@ -267,7 +267,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261109d");
+    const mod = await import("./view3d.js?v=20261109g");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -386,6 +386,7 @@ function bindSidebar() {
       plan.settings.brightness = Number(event.target.value);
     });
   });
+  sidebar.querySelector("#walker-toggle")?.addEventListener("click", () => ui.setShowWalker(!ui.showWalker));
   sidebar.querySelector("#shot")?.addEventListener("click", exportImage);
   sidebar.querySelector("#add-view")?.addEventListener("click", saveView);
   sidebar.querySelectorAll("[data-view]").forEach((button) => {
@@ -530,6 +531,8 @@ function presentPanel() {
         </select>
       </label>
       <p class="note">このタブの3Dは高画質です。間取、配置、配電の3Dは従来の表示です。</p>
+      <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
+      <p class="note">身長163cmです。Walkにすると、人が歩く速さで移動します。部屋の外や壁は越えません。</p>
       <button type="button" id="add-view">視点を追加</button>
       <button type="button" id="shot">画像を書き出す</button>
       ${plan.settings.exported ? `<p class="note">書き出し済み。編集はそのまま続けられます。</p>` : ""}
@@ -1240,7 +1243,7 @@ const DETAIL_COLUMNS = [
   ["amount", "金額"],
 ];
 const DETAIL_DEFAULT = ["name", "count", "size"];
-const DETAIL_KEY = "neosupo-star-beta6-detail-columns";
+const DETAIL_KEY = "neosupo-star-beta7-detail-columns";
 
 function loadDetailColumns() {
   try {
@@ -1469,13 +1472,14 @@ function clamp(value, min, max) {
 
 function createController() {
   const listeners = new Set();
-  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta6-layout-items") !== "0", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
+  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
   function emit() {
     listeners.forEach((fn) => fn());
   }
   return {
     get tool() { return state.tool; },
     get showPlaced() { return state.showPlaced; },
+    get showWalker() { return state.showWalker; },
     get tab() { return state.tab; },
     get powerSymbol() { return state.powerSymbol; },
     get powerPrompt() { return state.powerPrompt; },
@@ -1505,8 +1509,13 @@ function createController() {
     },
     setShowPlaced(shown) {
       state.showPlaced = !!shown;
-      localStorage.setItem("neosupo-star-beta6-layout-items", state.showPlaced ? "1" : "0");
+      localStorage.setItem("neosupo-star-beta7-layout-items", state.showPlaced ? "1" : "0");
       if (!state.showPlaced && state.tab === "layout" && state.selection?.kind === "item") state.selection = null;
+      emit();
+    },
+    setShowWalker(shown) {
+      state.showWalker = !!shown;
+      localStorage.setItem("neosupo-star-beta7-walker", state.showWalker ? "1" : "0");
       emit();
     },
     setTool(tool) {

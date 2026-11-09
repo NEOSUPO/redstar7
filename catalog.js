@@ -79,7 +79,7 @@ export function categoryTree(extras = []) {
   return root;
 }
 
-const USER_CATALOG_KEY = "neosupo-star-beta6-user-catalog-v1";
+const USER_CATALOG_KEY = "neosupo-star-beta7-user-catalog-v1";
 const COLUMNS = ["id", "name", "category", "w", "d", "h", "place", "color", "price", "scalable", "light", "residential", "leaf", "swing", "hand", "mountHeight", "scaleH"];
 const PLACES = new Set(["floor", "wall", "ceiling", "free"]);
 let userCatalog = readUserCatalog();

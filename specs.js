@@ -1,6 +1,6 @@
 import { pointInRoom } from "./geometry.js?v=20261022d";
 
-const PREF_KEY = "neosupo-star-beta6-specs";
+const PREF_KEY = "neosupo-star-beta7-specs";
 const EXTRAS = [
   ["maker", "メーカー"],
   ["model", "型式"],

@@ -1328,10 +1328,24 @@ export function createView3d(canvas, store, ui) {
     if (!turnLeft && (held.has("a") || held.has("arrowleft"))) side -= 1;
     const len = Math.hypot(forward, side);
     let moving = false;
-    if (len) {
+    if (len && !turnLeft && !turnRight) {
+      camera.updateMatrixWorld();
+      const basis = camera.matrixWorld.elements;
+      let fx = -basis[8];
+      let fz = -basis[10];
+      let rx = basis[0];
+      let rz = basis[2];
+      const fl = Math.hypot(fx, fz) || 1;
+      const rl = Math.hypot(rx, rz) || 1;
+      fx /= fl;
+      fz /= fl;
+      rx /= rl;
+      rz /= rl;
       const speed = WALK_MPS * dt;
-      const nx = body.x + (Math.sin(body.yaw) * forward - Math.cos(body.yaw) * side) / len * speed;
-      const nz = body.z + (Math.cos(body.yaw) * forward + Math.sin(body.yaw) * side) / len * speed;
+      const mx = (fx * forward + rx * side) / len;
+      const mz = (fz * forward + rz * side) / len;
+      const nx = body.x + mx * speed;
+      const nz = body.z + mz * speed;
       let nextX = body.x;
       let nextZ = body.z;
       if (canWalk(nx, nz)) {
@@ -1342,7 +1356,10 @@ export function createView3d(canvas, store, ui) {
       } else if (canWalk(body.x, nz)) {
         nextZ = nz;
       }
-      if (nextX !== body.x || nextZ !== body.z) {
+      const dx = nextX - body.x;
+      const dz = nextZ - body.z;
+      body.yaw = dx * dx + dz * dz > 0.01 ? Math.atan2(dx, dz) : Math.atan2(mx, mz);
+      if (dx * dx + dz * dz > 0.01) {
         body.x = nextX;
         body.z = nextZ;
         body.phase += (speed / STEP_MM) * Math.PI * 2;

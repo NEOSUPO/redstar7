@@ -6,7 +6,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { centroid, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
+import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
 import { snapValue } from "./store.js?v=20261106b";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
@@ -16,6 +16,7 @@ const EXPOSURE = [0.72, 1.02, 1.32];
 const TILE_MM = 700;
 const PERSON_MM = 1630;
 const WALK_MPS = 1300;
+const BODY_REACH = 620;
 const STEP_MM = 680;
 
 export function createView3d(canvas, store, ui) {
@@ -344,13 +345,14 @@ export function createView3d(canvas, store, ui) {
       root.add(plane);
     }
     for (const room of plan.rooms) addRoom(room, plan, ceiling);
-    if (ui.tab !== "layout" || ui.showPlaced !== false) {
-      for (const entry of plan.items) addItem(entry, plan, ceiling, level);
-      const sole = selection?.kind === "item" && selection.ids.length === 1
-        ? plan.items.find((row) => row.id === selection.ids[0])
-        : null;
-      if (sole && !sole.locked && !sole.openingId && sole.place !== "wall") addSpin(sole, plan, ceiling);
+    for (const entry of plan.items) {
+      if (ui.tab === "layout" && ui.showPlaced === false && !entry.openingId) continue;
+      addItem(entry, plan, ceiling, level);
     }
+    const sole = selection?.kind === "item" && selection.ids.length === 1
+      ? plan.items.find((row) => row.id === selection.ids[0])
+      : null;
+    if (sole && !sole.locked && !sole.openingId && sole.place !== "wall" && (ui.tab !== "layout" || ui.showPlaced !== false)) addSpin(sole, plan, ceiling);
   }
 
   function addRoom(room, plan, ceiling) {
@@ -860,14 +862,58 @@ export function createView3d(canvas, store, ui) {
 
   function canWalk(x, z) {
     const plan = store.get();
+    if (blocksFurniture(plan, x, z)) return false;
     const rooms = plan.rooms || [];
     if (!rooms.length) return true;
-    if (rooms.some((room) => pointInRoom(room, x, z))) return true;
+    if (inDoorway(plan, x, z)) return true;
+    const wall = Math.max(80, Number(plan.settings?.wall) || 150);
+    return rooms.some((room) => pointInRoom(room, x, z) && distanceToBoundary(room, x, z) >= wall + BODY_REACH);
+  }
+
+  function inDoorway(plan, x, z) {
+    if (doorAmount <= 0.45) return false;
+    const wallT = Math.max(80, Number(plan.settings?.wall) || 150);
     for (const opening of plan.openings || []) {
-      const room = rooms.find((row) => row.id === opening.roomId);
+      if ((Number(opening.sill) || 0) >= 80) continue;
+      const room = (plan.rooms || []).find((row) => row.id === opening.roomId);
       if (!room) continue;
       const center = openingCenter(room, opening);
-      if (Math.hypot(center.x - x, center.y - z) < (Number(opening.w) || 0) * 0.5 + 220) return true;
+      const edge = center.wall;
+      const half = (Number(opening.w) || 0) * 0.5;
+      let bestDist = Infinity;
+      let bestAlong = center.along;
+      for (let i = 0; i <= 8; i += 1) {
+        const along = center.along - half + ((half * 2) * i) / 8;
+        const point = edge.pointAt(along);
+        const dist = Math.hypot(point.x - x, point.y - z);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestAlong = along;
+        }
+      }
+      if (Math.abs(bestAlong - center.along) > half + 220) continue;
+      if (bestDist <= wallT + BODY_REACH + 160) return true;
+    }
+    return false;
+  }
+
+  function blocksFurniture(plan, x, z) {
+    for (const entry of plan.items || []) {
+      if (entry.openingId || entry.hostId) continue;
+      if (entry.place === "wall" || entry.place === "ceiling") continue;
+      const w = Number(entry.w) || 0;
+      const d = Number(entry.d) || 0;
+      if (w < 80 || d < 80) continue;
+      const hw = w * 0.5 + BODY_REACH;
+      const hd = d * 0.5 + BODY_REACH;
+      const rot = ((Number(entry.rot) || 0) * Math.PI) / 180;
+      const dx = x - entry.x;
+      const dy = z - entry.y;
+      const cos = Math.cos(rot);
+      const sin = Math.sin(rot);
+      const lx = dx * cos + dy * sin;
+      const ly = -dx * sin + dy * cos;
+      if (Math.abs(lx) <= hw && Math.abs(ly) <= hd) return true;
     }
     return false;
   }
@@ -1272,8 +1318,8 @@ export function createView3d(canvas, store, ui) {
       body.moving = false;
       return;
     }
-    const turnLeft = held.has("shift") && held.has("arrowleft");
-    const turnRight = held.has("shift") && held.has("arrowright");
+    const turnLeft = turnModifier && held.has("arrowleft");
+    const turnRight = turnModifier && held.has("arrowright");
     let forward = 0;
     let side = 0;
     if (held.has("w") || held.has("arrowup")) forward += 1;
@@ -1286,9 +1332,19 @@ export function createView3d(canvas, store, ui) {
       const speed = WALK_MPS * dt;
       const nx = body.x + (Math.sin(body.yaw) * forward - Math.cos(body.yaw) * side) / len * speed;
       const nz = body.z + (Math.cos(body.yaw) * forward + Math.sin(body.yaw) * side) / len * speed;
+      let nextX = body.x;
+      let nextZ = body.z;
       if (canWalk(nx, nz)) {
-        body.x = nx;
-        body.z = nz;
+        nextX = nx;
+        nextZ = nz;
+      } else if (canWalk(nx, body.z)) {
+        nextX = nx;
+      } else if (canWalk(body.x, nz)) {
+        nextZ = nz;
+      }
+      if (nextX !== body.x || nextZ !== body.z) {
+        body.x = nextX;
+        body.z = nextZ;
         body.phase += (speed / STEP_MM) * Math.PI * 2;
         moving = true;
       }
@@ -1309,15 +1365,16 @@ export function createView3d(canvas, store, ui) {
     }
     const skyMove = onReport && mode === "sky" && ui.showWalker !== false;
     if (skyMove) {
-      if (event.altKey || event.metaKey || event.ctrlKey) return;
-      if (event.key.toLowerCase() === "shift") {
-        held.add("shift");
+      if (event.altKey || event.metaKey) return;
+      if (event.key === "Control") {
+        turnModifier = true;
         return;
       }
       const key = moveKey(event);
       if (!key || key === "q" || key === "e") return;
+      if (event.ctrlKey && key !== "arrowleft" && key !== "arrowright") return;
+      if (event.ctrlKey) turnModifier = true;
       held.add(key);
-      if (event.shiftKey) held.add("shift");
       event.preventDefault();
       return;
     }

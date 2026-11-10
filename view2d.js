@@ -94,12 +94,15 @@ export function createView2d(canvas, store, ui) {
     drawUnderlay(plan.underlay);
     for (const room of plan.rooms) drawRoom(room, plan);
     drawOpeningMarks(plan);
+    for (const entry of plan.items) {
+      if (entry.openingId) drawLeaf(entry, plan);
+    }
     if (showPlacedItems()) {
       const loose = [];
       const atop = [];
       for (const entry of plan.items) {
-        if (entry.openingId) drawLeaf(entry, plan);
-        else if (entry.hostId) atop.push(entry);
+        if (entry.openingId) continue;
+        if (entry.hostId) atop.push(entry);
         else loose.push(entry);
       }
       for (const entry of loose) drawItem(entry, plan);
@@ -830,7 +833,7 @@ export function createView2d(canvas, store, ui) {
       placeItem(wpt);
       return;
     }
-    const opening = (showPlacedItems() ? hitDoorLeaf(wpt.x, wpt.y) : null) || hitOpening(store.get(), wpt.x, wpt.y);
+    const opening = hitDoorLeaf(wpt.x, wpt.y) || hitOpening(store.get(), wpt.x, wpt.y);
     if (opening) {
       ui.select({ kind: "opening", ids: [opening.id] });
       drag = { kind: "move-opening", id: opening.id, pending: true };
@@ -1125,7 +1128,7 @@ export function createView2d(canvas, store, ui) {
     const y0 = Math.min(state.start.y, state.current.y);
     const x1 = Math.max(state.start.x, state.current.x);
     const y1 = Math.max(state.start.y, state.current.y);
-    const hits = showPlacedItems() ? store.get().items.filter((entry) => entry.x >= x0 && entry.x <= x1 && entry.y >= y0 && entry.y <= y1) : [];
+    const hits = store.get().items.filter((entry) => (showPlacedItems() || entry.openingId) && entry.x >= x0 && entry.x <= x1 && entry.y >= y0 && entry.y <= y1);
     const ids = [...new Set([...state.base, ...hits.flatMap((entry) => memberIds(entry))])];
     ui.select(ids.length ? { kind: "item", ids } : null);
     draw();

@@ -7,7 +7,7 @@ import { bindPower, powerPanel } from "./power.js?v=20261028d";
 import { createStore, uid } from "./store.js?v=20261106b";
 import { seatItems } from "./surface.js?v=20261028d";
 import { mountSpecs } from "./specs.js?v=20261104m";
-import { createView2d } from "./view2d.js?v=20261109e";
+import { createView2d } from "./view2d.js?v=20261110a";
 
 const store = createStore();
 const ui = createController();
@@ -268,7 +268,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261109h");
+    const mod = await import("./view3d.js?v=20261110e");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -288,7 +288,7 @@ function markViewMode(next) {
   help.textContent = walking
     ? "カーソルで移動（Ctrl押しながら左右で視点移動）Shiftで早く移動"
     : ui.tab === "present"
-      ? "ドラッグで見下ろします。キャラクターは矢印キーかWASDで歩き、Shiftを押しながら左右で向きを変えます。Hで表示と非表示です。"
+      ? "ドラッグで見下ろします。キャラクターは矢印キーかWASDで歩き、壁と配置した器具を越えません。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。"
       : "ドラッグで見下ろします。右ドラッグで図面を移動し、ホイールと拡大・縮小で寄り引きします。";
 }
 
@@ -538,7 +538,7 @@ function presentPanel() {
       </label>
       <p class="note">このタブの3Dは高画質です。間取、配置、配電の3Dは従来の表示です。</p>
       <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
-      <p class="note">身長163cmです。Skyで表示し、矢印キーかWASDで歩きます。Shiftを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。部屋の外や壁は越えません。</p>
+      <p class="note">身長163cmです。Skyで表示し、矢印キーかWASDで歩きます。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。壁と配置した器具は、少し余裕を残して越えません。</p>
       <button type="button" id="add-view">視点を追加</button>
       <button type="button" id="shot">画像を書き出す</button>
       ${plan.settings.exported ? `<p class="note">書き出し済み。編集はそのまま続けられます。</p>` : ""}

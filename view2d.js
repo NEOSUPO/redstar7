@@ -1,4 +1,5 @@
-import { lookupItem } from "./catalog.js?v=20261028d";
+﻿import { lookupItem } from "./catalog.js?v=20261028d";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, paintRoom } from "./env.js?v=20261111d";
 import {
   centroid,
   edgeGeometry,
@@ -26,7 +27,7 @@ import {
   syncLeaves,
 } from "./openings.js?v=20261022f";
 import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261028d";
-import { snapValue, uid } from "./store.js?v=20261106b";
+import { snapValue, uid } from "./store.js?v=20261111d";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -111,6 +112,8 @@ export function createView2d(canvas, store, ui) {
       if (spinning) drawSpin(spinning);
     }
     drawPower(ctx, plan, ui, screen, cam.scale);
+    if (drag?.kind === "new-flow") drawEnv(ctx, { ...plan, flows: [...(plan.flows || []), { id: "draft", kind: drag.flowKind, x1: drag.start.x, y1: drag.start.y, x2: drag.current.x, y2: drag.current.y }] }, ui, screen, cam.scale, rect);
+    else drawEnv(ctx, plan, ui, screen, cam.scale, rect);
     if (measure?.a && measure?.b) drawMeasure(measure.a, measure.b);
     if (drag?.kind === "new-room") drawDraft(drag.start, drag.current);
     if (drag?.kind === "marquee") drawDraft(drag.start, drag.current);
@@ -176,6 +179,17 @@ export function createView2d(canvas, store, ui) {
     ctx.fillStyle = room.floorColor || room.color;
     traceOutline(outline);
     ctx.fill();
+    if (envVisible(ui)) {
+      const tint = gradeFill(room);
+      if (tint) {
+        ctx.save();
+        ctx.globalAlpha = 0.82;
+        ctx.fillStyle = tint;
+        traceOutline(outline);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
     if (room.dropCeiling > 0) {
       const center = centroid(room);
       ctx.save();
@@ -198,6 +212,12 @@ export function createView2d(canvas, store, ui) {
     if (ui.tab === "layout") {
       ctx.fillText(room.name, label.x, label.y - 8);
       ctx.fillText(`${(roomArea(room) / 1e6).toFixed(2)} ㎡`, label.x, label.y + 10);
+    }
+    if (envVisible(ui)) {
+      const tint = gradeFill(room);
+      ctx.fillText(room.name, label.x, label.y - 16);
+      ctx.fillText(tint ? (room.grade === "A" ? "無菌操作区域" : room.grade === "N" ? "一般環境" : `グレード${room.grade}`) : "清浄度 未設定", label.x, label.y);
+      ctx.fillText(room.pressure == null ? "室圧 未設定" : `${room.pressure > 0 ? "+" : ""}${room.pressure} Pa`, label.x, label.y + 16);
     }
     if (room.floorFinish && room.floorFinish !== "床") ctx.fillText(room.floorFinish, label.x, label.y + 26);
     if (selected("room", room.id)) {
@@ -677,6 +697,67 @@ export function createView2d(canvas, store, ui) {
     return null;
   }
 
+  function handleEnvPointer(wpt) {
+    if (ui.tool === "env-grade") {
+      const room = hitRoom(wpt.x, wpt.y);
+      if (room) {
+        store.update((plan) => {
+          const target = plan.rooms.find((entry) => entry.id === room.id);
+          if (target) paintRoom(target, ui.envGrade);
+        });
+        ui.select({ kind: "room", ids: [room.id] });
+      }
+      pointer.down = false;
+      draw();
+      return true;
+    }
+    if (ui.tool === "env-flow") {
+      drag = { kind: "new-flow", flowKind: ui.envFlow || "enter", start: { x: wpt.x, y: wpt.y }, current: { x: wpt.x, y: wpt.y } };
+      draw();
+      return true;
+    }
+    const flow = hitFlow(store.get(), wpt.x, wpt.y, cam.scale);
+    if (flow) {
+      const row = store.get().flows.find((entry) => entry.id === flow.id);
+      ui.select({ kind: "flow", ids: [flow.id] });
+      drag = {
+        kind: "move-flow",
+        id: flow.id,
+        origin: wpt,
+        pending: true,
+        start: { x1: row.x1, y1: row.y1, x2: row.x2, y2: row.y2 },
+      };
+      draw();
+      return true;
+    }
+    const opening = hitOpening(store.get(), wpt.x, wpt.y);
+    if (opening) {
+      ui.select({ kind: "opening", ids: [opening.id] });
+      pointer.down = false;
+      draw();
+      return true;
+    }
+    const room = hitRoom(wpt.x, wpt.y);
+    if (room) {
+      ui.select({ kind: "room", ids: [room.id] });
+      pointer.down = false;
+      draw();
+      return true;
+    }
+    drag = { kind: "pan", cx: cam.x, cy: cam.y, sx: pointer.sx, sy: pointer.sy, clearOnClick: true };
+    return true;
+  }
+
+  function finishFlow(state) {
+    const moved = Math.hypot(state.current.x - state.start.x, state.current.y - state.start.y);
+    if (moved < 200) return;
+    let id = null;
+    store.update((plan) => {
+      id = addFlow(plan, state.flowKind, state.start, state.current).id;
+    });
+    if (id) ui.select({ kind: "flow", ids: [id] });
+  }
+
   function handlePowerPointer(wpt) {
     if (ui.tool === "power") {
       const anchor = placeAnchor(store.get(), wpt.x, wpt.y);
@@ -773,6 +854,9 @@ export function createView2d(canvas, store, ui) {
     }
     if (ui.tab === "power") {
       if (handlePowerPointer(wpt)) return;
+    }
+    if (ui.tab === "env") {
+      if (handleEnvPointer(wpt)) return;
     }
     if (ui.tool === "room") {
       const placed = placedRoomId && hitRoom(wpt.x, wpt.y);
@@ -925,9 +1009,26 @@ export function createView2d(canvas, store, ui) {
       draw();
       return;
     }
-    if (drag.kind === "new-room" || drag.kind === "marquee") {
+    if (drag.kind === "new-room" || drag.kind === "marquee" || drag.kind === "new-flow") {
       drag.current = drag.kind === "new-room" ? snapPoint(wpt) : wpt;
       draw();
+      return;
+    }
+    if (drag.kind === "move-flow") {
+      if (drag.pending) {
+        store.checkpoint();
+        drag.pending = false;
+      }
+      const dx = wpt.x - drag.origin.x;
+      const dy = wpt.y - drag.origin.y;
+      store.mutate((plan) => {
+        const flow = plan.flows.find((entry) => entry.id === drag.id);
+        if (!flow) return;
+        flow.x1 = drag.start.x1 + dx;
+        flow.y1 = drag.start.y1 + dy;
+        flow.x2 = drag.start.x2 + dx;
+        flow.y2 = drag.start.y2 + dy;
+      });
       return;
     }
     if (drag.kind === "spin-item") {
@@ -965,6 +1066,7 @@ export function createView2d(canvas, store, ui) {
     }
     if (drag?.kind === "move-underlay" || drag?.kind === "resize-underlay") ui.select({ kind: "underlay", ids: ["underlay"] });
     if (drag?.kind === "new-room") finishRoom(drag.start, drag.current);
+    if (drag?.kind === "new-flow") finishFlow(drag);
     if (drag?.kind === "marquee") finishMarquee(drag);
     if (drag?.kind === "spin-item" && !drag.pending) {
       const id = drag.id;

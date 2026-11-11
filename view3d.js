@@ -1,4 +1,4 @@
-import * as THREE from "three";
+﻿import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
@@ -6,9 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111d";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261106b";
+import { snapValue } from "./store.js?v=20261111d";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -63,6 +64,8 @@ export function createView3d(canvas, store, ui) {
   const doorLeaves = [];
   let slide = null;
   let blank = null;
+  let walkerSelected = false;
+  let walkerDrag = null;
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
   const spinPlane = new THREE.Plane();
@@ -345,6 +348,7 @@ export function createView3d(canvas, store, ui) {
       root.add(plane);
     }
     for (const room of plan.rooms) addRoom(room, plan, ceiling);
+    addEnvArrows(plan);
     for (const entry of plan.items) {
       if (ui.tab === "layout" && ui.showPlaced === false && !entry.openingId) continue;
       addItem(entry, plan, ceiling, level);
@@ -355,13 +359,43 @@ export function createView3d(canvas, store, ui) {
     if (sole && !sole.locked && !sole.openingId && sole.place !== "wall" && (ui.tab !== "layout" || ui.showPlaced !== false)) addSpin(sole, plan, ceiling);
   }
 
+  function addArrow(x1, y1, x2, y2, color, dashed) {
+    const height = 70;
+    const geom = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x1, height, y1),
+      new THREE.Vector3(x2, height, y2),
+    ]);
+    const mat = dashed
+      ? new THREE.LineDashedMaterial({ color, dashSize: 200, gapSize: 140 })
+      : new THREE.LineBasicMaterial({ color });
+    const line = new THREE.Line(geom, mat);
+    if (dashed) line.computeLineDistances();
+    root.add(line);
+    const dx = x2 - x1;
+    const dz = y2 - y1;
+    const len = Math.hypot(dx, dz) || 1;
+    const head = new THREE.Mesh(new THREE.ConeGeometry(60, 200, 8), new THREE.MeshBasicMaterial({ color }));
+    head.position.set(x2, height, y2);
+    head.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / len, 0, dz / len));
+    root.add(head);
+  }
+
+  function addEnvArrows(plan) {
+    if (!envShown) return;
+    for (const flow of plan.flows || []) {
+      const spec = flowById(flow.kind);
+      addArrow(flow.x1, flow.y1, flow.x2, flow.y2, spec.color, spec.dash);
+    }
+    for (const mark of pressureMarks(plan)) addArrow(mark.x1, mark.y1, mark.x2, mark.y2, "#243040", false);
+  }
+
   function addRoom(room, plan, ceiling) {
     const lift = Number(room.raisedFloor) || 0;
     const floorH = 40 + lift;
     const floorGeom = floorGeometry(room, 0, floorH);
     const floor = new THREE.Mesh(
       floorGeom,
-      finishMaterial({ color: room.floorColor || room.color, kind: "floor" }),
+      finishMaterial({ color: (envShown && gradeById(room.grade)?.color) || room.floorColor || room.color, kind: "floor" }),
     );
     dress(floor, "floor");
     floor.rotation.x = -Math.PI / 2;
@@ -585,17 +619,18 @@ export function createView3d(canvas, store, ui) {
   function rayHit(event) {
     eventNdc(event);
     raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObjects(root.children, true);
+    const targets = actor?.visible ? [actor, ...root.children] : root.children;
+    const hits = raycaster.intersectObjects(targets, true);
     for (const hit of hits) {
       let obj = hit.object;
       let visible = true;
       let cursor = obj;
-      while (cursor && cursor !== root) {
+      while (cursor && cursor !== root && cursor !== scene) {
         if (!cursor.visible) visible = false;
         cursor = cursor.parent;
       }
       if (!visible) continue;
-      while (obj && obj !== root) {
+      while (obj && obj !== root && obj !== scene) {
         if (obj.userData?.pick) return obj.userData;
         obj = obj.parent;
       }
@@ -618,6 +653,8 @@ export function createView3d(canvas, store, ui) {
     slide = null;
     blank = null;
     look = null;
+    walkerDrag = null;
+    if (mode !== "walk") controls.enabled = true;
     if (doneSlide && !doneSlide.pending) {
       store.mutate((draft) => {
         const guests = draft.items.filter((item) => item.hostId === doneSlide.id).map((item) => item.id);
@@ -632,7 +669,11 @@ export function createView3d(canvas, store, ui) {
     if (!click || event?.type !== "pointerup") return;
     const dx = event.clientX - click.x;
     const dy = event.clientY - click.y;
-    if (dx * dx + dy * dy <= 36) ui?.select(null);
+    if (dx * dx + dy * dy <= 36) {
+      walkerSelected = false;
+      markWalker();
+      if (selection) ui?.select(null);
+    }
   }
 
   function slideStarts(plan, id) {
@@ -938,6 +979,47 @@ export function createView3d(canvas, store, ui) {
     actor.rotation.y = body.yaw;
     actor.rotation.x = body.moving ? Math.sin(body.phase) * 0.04 : 0;
     actor.rotation.z = body.moving ? Math.sin(body.phase * 0.5) * 0.035 : 0;
+    markWalker();
+  }
+
+  function markWalker() {
+    const mesh = actor?.children?.[0];
+    if (!mesh?.material?.emissive) return;
+    if (walkerSelected && personShown()) {
+      mesh.material.emissive.set("#0060b0");
+      mesh.material.emissiveIntensity = 0.35;
+    } else {
+      mesh.material.emissive.set("#000000");
+      mesh.material.emissiveIntensity = 0;
+    }
+  }
+
+  function moveWalker(x, z) {
+    const body = ensureWalker();
+    const dx = x - body.x;
+    const dz = z - body.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1) return;
+    const step = 40;
+    let cx = body.x;
+    let cz = body.z;
+    const count = Math.ceil(dist / step);
+    for (let i = 1; i <= count; i += 1) {
+      const t = Math.min(1, (i * step) / dist);
+      const nx = body.x + dx * t;
+      const nz = body.z + dz * t;
+      if (canWalk(nx, nz)) {
+        cx = nx;
+        cz = nz;
+      } else if (canWalk(nx, cz)) {
+        cx = nx;
+      } else if (canWalk(cx, nz)) {
+        cz = nz;
+      } else break;
+    }
+    body.x = cx;
+    body.z = cz;
+    poseActor();
   }
 
   function accessorArray(gltf, binStart, buffer, index, components) {
@@ -984,6 +1066,7 @@ export function createView3d(canvas, store, ui) {
     mesh.position.y = -box.min.y * scale;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.userData = { pick: "walker" };
     actor = new THREE.Group();
     actor.add(mesh);
     scene.add(actor);
@@ -1148,7 +1231,7 @@ export function createView3d(canvas, store, ui) {
         else mapCtx.lineTo(x, y);
       });
       mapCtx.closePath();
-      mapCtx.fillStyle = room.floorColor || room.color || "#f7f4ee";
+      mapCtx.fillStyle = (envShown && gradeById(room.grade)?.color) || room.floorColor || room.color || "#f7f4ee";
       mapCtx.fill();
       mapCtx.lineJoin = "round";
       mapCtx.lineWidth = Math.max(1.5, (Number(plan.settings?.wall) || 150) * scale);
@@ -1430,14 +1513,17 @@ export function createView3d(canvas, store, ui) {
     turnModifier = false;
   });
   window.addEventListener("resize", resize);
-  store.subscribe(rebuild);
+  let envShown = false;
   let hidePlaced = ui.tab === "layout" && ui.showPlaced === false;
+  store.subscribe(rebuild);
   ui.subscribe(() => {
     poseActor();
     if (mode === "walk") applyWalk();
     const nextHide = ui.tab === "layout" && ui.showPlaced === false;
-    if ((ui.tab === "present") === hq && nextHide === hidePlaced) return;
+    const nextEnv = ui.tab === "env" || (ui.tab === "present" && ui.showEnv);
+    if ((ui.tab === "present") === hq && nextHide === hidePlaced && nextEnv === envShown) return;
     hidePlaced = nextHide;
+    envShown = nextEnv;
     rebuild();
   });
   resize();
@@ -1480,6 +1566,8 @@ export function createView3d(canvas, store, ui) {
 
   function setSelection(next) {
     selection = next?.ids?.length ? { kind: next.kind, ids: [...next.ids] } : null;
+    if (selection) walkerSelected = false;
+    markWalker();
     rebuild();
   }
 
@@ -1487,7 +1575,7 @@ export function createView3d(canvas, store, ui) {
     if (event.button !== 0) return;
     const hit = rayHit(event);
     if (!hit) {
-      blank = selection ? { x: event.clientX, y: event.clientY } : null;
+      blank = selection || walkerSelected ? { x: event.clientX, y: event.clientY } : null;
       if (mode === "walk" && walk) {
         look = { x: event.clientX, y: event.clientY, yaw: walk.yaw, pitch: walk.pitch };
         event.stopImmediatePropagation();
@@ -1496,6 +1584,26 @@ export function createView3d(canvas, store, ui) {
       return;
     }
     blank = null;
+    if (hit.pick === "walker" && personShown()) {
+      const body = ensureWalker();
+      const point = pointerOnPlane(event, floorLift(body.x, body.z));
+      if (!point) return;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+      walkerSelected = true;
+      walkerDrag = {
+        startX: body.x,
+        startZ: body.z,
+        originX: point.x,
+        originZ: point.z,
+        planeY: floorLift(body.x, body.z),
+      };
+      controls.enabled = false;
+      if (selection) ui?.select(null);
+      else markWalker();
+      try { canvas.setPointerCapture(event.pointerId); } catch { /* capture is optional */ }
+      return;
+    }
     if (hit.pick === "spin") {
       const entry = store.get().items.find((row) => row.id === hit.id);
       if (!entry || entry.locked) return;
@@ -1545,6 +1653,17 @@ export function createView3d(canvas, store, ui) {
       walk.yaw = look.yaw - (event.clientX - look.x) * 0.005;
       walk.pitch = clamp(look.pitch - (event.clientY - look.y) * 0.004, -1.05, 0.7);
       applyWalk();
+      return;
+    }
+    if (walkerDrag) {
+      const point = pointerOnPlane(event, walkerDrag.planeY);
+      if (!point) return;
+      const plan = store.get();
+      const steps = [plan.settings.module / plan.settings.division, (Number(plan.settings.wall) || 150) / 2];
+      const enabled = plan.settings.snap !== false;
+      const x = snapValue(walkerDrag.startX + (point.x - walkerDrag.originX), steps, enabled);
+      const z = snapValue(walkerDrag.startZ + (point.z - walkerDrag.originZ), steps, enabled);
+      moveWalker(x, z);
       return;
     }
     if (slide) {

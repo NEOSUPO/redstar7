@@ -1,3 +1,4 @@
+﻿import { normalizeEnv } from "./env.js?v=20261111d";
 import { ensureRoom, nearestEdge } from "./geometry.js";
 import { migrateOpenings } from "./openings.js?v=20261022f";
 import { normalizePower } from "./power.js?v=20261028d";
@@ -233,6 +234,7 @@ export function normalizePlan(plan) {
     h: Number(opening.h) || 1000,
     sill: Number(opening.sill) || 0,
     preset: opening.preset || "hole",
+    envRole: opening.envRole || "",
   }));
   const next = {
     id: plan.id || uid(),
@@ -248,8 +250,10 @@ export function normalizePlan(plan) {
     panels: plan.panels,
     breakers: plan.breakers,
     outlets: plan.outlets,
+    flows: plan.flows,
   };
   normalizePower(next);
+  normalizeEnv(next);
   attachWalls(next);
   migrateOpenings(next);
   clearMissingHosts(next);

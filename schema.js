@@ -9,6 +9,7 @@ export const SHEET = {
   SETTINGS: "図面設定",
   CANVAS: "図面",
   POWER: "配電",
+  ENV: "環境",
   LIST: "機器リスト",
 };
 

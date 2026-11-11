@@ -1,4 +1,5 @@
-import { CATALOG, lookupItem } from "./catalog.js?v=20261028d";
+﻿import { CATALOG, lookupItem } from "./catalog.js?v=20261028d";
+import { applyEnvRows, envToRows } from "./env.js?v=20261111d";
 import { centroid, distanceToBoundary, outlinePoints, pointInRoom } from "./geometry.js";
 import { hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
 import { powerToRows, rowsToPower } from "./power.js?v=20261028d";
@@ -33,6 +34,7 @@ export function planToBook(plan) {
     grid,
     overview,
     power: powerToRows(plan),
+    env: envToRows(plan),
   };
 }
 
@@ -63,7 +65,7 @@ export function bookToPlan(tables) {
   }
   clearMissingHosts({ items });
   const name = String(project.name || drawings[0]?.name || "Excel取込");
-  return {
+  const built = {
     id: String(drawings[0]?.id || project.active_drawing_id || "excel"),
     name,
     updatedAt: Date.now(),
@@ -75,7 +77,10 @@ export function bookToPlan(tables) {
     customItems,
     underlay: parseJson(readLong(project, "underlay_json"), null),
     ...rowsToPower(tables.power),
+    flows: [],
   };
+  applyEnvRows(built, tables.env);
+  return built;
 }
 
 function projectPairs(plan) {

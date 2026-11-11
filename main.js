@@ -1,13 +1,14 @@
-import { bookToPlan, planToBook } from "./book.js?v=20261109b";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111d";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261028d";
+import { bindEnv, envPanel } from "./env.js?v=20261111d";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111d";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
 import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261106b";
+import { createStore, uid } from "./store.js?v=20261111d";
 import { seatItems } from "./surface.js?v=20261028d";
 import { mountSpecs } from "./specs.js?v=20261104m";
-import { createView2d } from "./view2d.js?v=20261110a";
+import { createView2d } from "./view2d.js?v=20261111d";
 
 const store = createStore();
 const ui = createController();
@@ -63,6 +64,11 @@ function specsStartsFolded(saved) {
 
 function applyTabFolds(nextTab) {
   const saved = readFolds();
+  if (nextTab === "env") {
+    paintFold("menu", false);
+    paintFold("specs", true);
+    return;
+  }
   if (nextTab === "power" || nextTab === "present") {
     paintFold("menu", true);
     paintFold("specs", true);
@@ -101,8 +107,9 @@ document.querySelectorAll(".tabs button").forEach((button) => {
     ui.setTab(tab);
     document.querySelectorAll(".tabs button").forEach((el) => el.classList.toggle("active", el === button));
     if (tab === "items" || tab === "layout" || tab === "power") ui.setTool("select");
-    document.querySelector("#mode-3d").hidden = tab === "power";
-    if (tab === "power" && mode === "3d") setMode("2d");
+    if (tab === "env") ui.setEnvGrade(ui.envGrade || "B");
+    document.querySelector("#mode-3d").hidden = tab === "power" || tab === "env";
+    if ((tab === "power" || tab === "env") && mode === "3d") setMode("2d");
     applyTabFolds(tab);
     renderSidebar();
     markViewMode(document.querySelector("#walk").classList.contains("active") ? "walk" : "sky");
@@ -233,6 +240,8 @@ window.addEventListener("keydown", (event) => {
   } else if (!typing && command && event.key.toLowerCase() === "g") {
     event.preventDefault();
     groupSelection();
+  } else if (!typing && event.key === "Escape" && ui.tab === "env") {
+    ui.setTool("select");
   } else if (!typing && (event.key === "Delete" || event.key === "Backspace")) {
     event.preventDefault();
     deleteSelection();
@@ -268,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261110g");
+    const mod = await import("./view3d.js?v=20261111d");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -288,7 +297,7 @@ function markViewMode(next) {
   help.textContent = walking
     ? "カーソルで移動（Ctrl押しながら左右で視点移動）Shiftで早く移動"
     : ui.tab === "present"
-      ? "ドラッグで見下ろします。キャラクターは矢印キーかWASDで歩き、進む方向を向きます。壁と配置した器具を越えません。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。"
+      ? "ドラッグで見下ろします。キャラクターは矢印キーかWASDで歩き、進む方向を向きます。マウスで選んで移動できます。壁と配置した器具を越えません。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。"
       : "ドラッグで見下ろします。右ドラッグで図面を移動し、ホイールと拡大・縮小で寄り引きします。";
 }
 
@@ -309,12 +318,15 @@ function renderSidebar() {
   if (tab === "layout") sidebar.innerHTML = layoutPanel();
   else if (tab === "items") sidebar.innerHTML = itemPanel();
   else if (tab === "power") sidebar.innerHTML = powerPanel(store.get(), ui);
+  else if (tab === "env") sidebar.innerHTML = envPanel(store.get(), ui);
   else if (tab === "present") sidebar.innerHTML = presentPanel();
   bindSidebar();
 }
 
 function bindSidebar() {
   bindPower(sidebar, store, ui, renderSidebar);
+  bindEnv(sidebar, store, ui);
+  sidebar.querySelector("#show-env")?.addEventListener("change", (event) => ui.setShowEnv(event.target.checked));
   sidebar.querySelector("#module")?.addEventListener("change", (event) => {
     const value = event.target.value;
     store.update((plan) => {
@@ -538,7 +550,8 @@ function presentPanel() {
       </label>
       <p class="note">このタブの3Dは高画質です。間取、配置、配電の3Dは従来の表示です。</p>
       <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
-      <p class="note">身長163cmです。Skyで表示し、矢印キーかWASDで歩きます。進む方向を向きます。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。壁と配置した器具は、少し余裕を残して越えません。</p>
+      <label class="check"><input id="show-env" type="checkbox" ${ui.showEnv ? "checked" : ""} /> 環境の色と矢印を表示</label>
+      <p class="note">身長163cmです。Skyで表示し、矢印キーかWASDで歩きます。進む方向を向きます。マウスで選んで移動できます。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。壁と配置した器具は、少し余裕を残して越えません。</p>
       <button type="button" id="add-view">視点を追加</button>
       <button type="button" id="shot">画像を書き出す</button>
       ${plan.settings.exported ? `<p class="note">書き出し済み。編集はそのまま続けられます。</p>` : ""}
@@ -923,6 +936,7 @@ function deleteSelection() {
       plan.openings = plan.openings.filter((opening) => !sel.ids.includes(opening.id));
       plan.items = plan.items.filter((entry) => !sel.ids.includes(entry.openingId));
     }
+    if (sel.kind === "flow") plan.flows = (plan.flows || []).filter((flow) => !sel.ids.includes(flow.id));
     if (sel.kind === "underlay") plan.underlay = null;
     if (sel.kind === "item") {
       const remove = new Set(sel.ids.filter((id) => !plan.items.find((entry) => entry.id === id)?.locked));
@@ -968,7 +982,7 @@ function deleteSelection() {
 
 function duplicateSelection() {
   const sel = ui.selection;
-  if (!sel || sel.kind === "underlay" || sel.kind === "panel" || sel.kind === "breaker") return;
+  if (!sel || sel.kind === "underlay" || sel.kind === "panel" || sel.kind === "breaker" || sel.kind === "flow") return;
   if (sel.kind === "outlet") {
     const created = [];
     store.update((plan) => {
@@ -1478,7 +1492,7 @@ function clamp(value, min, max) {
 
 function createController() {
   const listeners = new Set();
-  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
+  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showEnv: false, envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
   function emit() {
     listeners.forEach((fn) => fn());
   }
@@ -1486,6 +1500,9 @@ function createController() {
     get tool() { return state.tool; },
     get showPlaced() { return state.showPlaced; },
     get showWalker() { return state.showWalker; },
+    get showEnv() { return state.showEnv; },
+    get envGrade() { return state.envGrade; },
+    get envFlow() { return state.envFlow; },
     get tab() { return state.tab; },
     get powerSymbol() { return state.powerSymbol; },
     get powerPrompt() { return state.powerPrompt; },
@@ -1522,6 +1539,20 @@ function createController() {
     setShowWalker(shown) {
       state.showWalker = !!shown;
       localStorage.setItem("neosupo-star-beta7-walker", state.showWalker ? "1" : "0");
+      emit();
+    },
+    setShowEnv(shown) {
+      state.showEnv = !!shown;
+      emit();
+    },
+    setEnvGrade(id) {
+      state.envGrade = id || "";
+      state.tool = "env-grade";
+      emit();
+    },
+    setEnvFlow(id) {
+      state.envFlow = id || "enter";
+      state.tool = "env-flow";
       emit();
     },
     setTool(tool) {

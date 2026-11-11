@@ -202,11 +202,19 @@ function distToSeg(x, y, flow) {
 }
 
 export function hitFlow(plan, x, y, scale) {
-  const tol = 14 / Math.max(scale, 0.01);
+  const bodyTol = 14 / Math.max(scale, 0.01);
+  const endTol = 22 / Math.max(scale, 0.01);
   let best = null;
   for (const flow of plan.flows || []) {
-    const dist = distToSeg(x, y, flow);
-    if (dist <= tol && (!best || dist < best.dist)) best = { id: flow.id, dist };
+    const hits = [
+      { handle: "start", dist: Math.hypot(x - flow.x1, y - flow.y1), limit: endTol },
+      { handle: "end", dist: Math.hypot(x - flow.x2, y - flow.y2), limit: endTol },
+      { handle: "body", dist: distToSeg(x, y, flow), limit: bodyTol },
+    ];
+    for (const hit of hits) {
+      if (hit.dist > hit.limit) continue;
+      if (!best || hit.dist < best.dist) best = { id: flow.id, dist: hit.dist, handle: hit.handle };
+    }
   }
   return best;
 }
@@ -345,10 +353,10 @@ export function envPanel(plan, ui) {
     <label>室圧 Pa
       <input id="env-pa" type="number" step="1" value="${room.pressure == null ? "" : room.pressure}" />
     </label>
-    <div class="env-choices">
-      <button type="button" data-pa="30">Bの目安 +30</button>
-      <button type="button" data-pa="15">Cの目安 +15</button>
-      <button type="button" data-pa="10">Dの目安 +10</button>
+    <div class="env-choices env-pa">
+      <button type="button" data-pa="30">B +30</button>
+      <button type="button" data-pa="15">C +15</button>
+      <button type="button" data-pa="10">D +10</button>
       <button type="button" data-pa="0">一般 0</button>
       <button type="button" data-pa="-10">廃棄 -10</button>
     </div>
@@ -361,7 +369,13 @@ export function envPanel(plan, ui) {
       <button type="button" data-role="" class="${opening.envRole ? "" : "active"}">指定しない</button>
     </div>
   ` : "";
-  const picked = flow ? `<p class="note">選んだ線は${escapeHtml(flowById(flow.kind).name)}です。Deleteで消せます。ドラッグで移動できます。</p>` : "";
+  const picked = flow ? `
+    <p class="note">選んだ線は${escapeHtml(flowById(flow.kind).name)}です。線をドラッグで移動、端点をドラッグで向きと長さを変えられます。</p>
+    <div class="env-flow-tools">
+      <button type="button" id="env-flow-flip">向きを反転</button>
+      <button type="button" id="env-flow-del">この線を削除</button>
+    </div>
+  ` : "";
   const notes = envChecks(plan);
   const checks = notes.length
     ? notes.map((note) => `<button type="button" class="env-warn" data-focus-kind="${note.kind}" data-focus-id="${escapeHtml(note.id)}">${escapeHtml(note.text)}</button>`).join("")
@@ -370,8 +384,10 @@ export function envPanel(plan, ui) {
     <div class="side-block env-steps">
       <h2>環境</h2>
       <p class="env-now">${escapeHtml(envPrompt(ui))}</p>
+      <label class="check"><input id="show-env-legend" type="checkbox" ${ui.showEnvLegend !== false ? "checked" : ""} /> 凡例を表示</label>
       <section class="env-step">
         <h3>1. 清浄度を塗る</h3>
+        <p class="note">部屋を1つ塗ると選択に戻ります。続けて塗るときは、もう一度色を選んでください。</p>
         <div class="env-choices">${grades}</div>
         <button type="button" data-grade="" class="${ui.tool === "env-grade" && !ui.envGrade ? "active" : ""}">塗った色を消す</button>
       </section>
@@ -384,7 +400,7 @@ export function envPanel(plan, ui) {
       </section>
       <section class="env-step">
         <h3>3. 動線を引く</h3>
-        <p class="note">赤は人、青は物、緑の破線は廃棄物です。始点から終点までドラッグします。1本引くと選択に戻ります。続けて引くときは、もう一度種類を選んでください。</p>
+        <p class="note">赤は人、青は物、緑の破線は廃棄物です。始点から終点までドラッグします。1本引くと選択に戻ります。あとから線や端点をドラッグして移動・向きを変えられます。</p>
         <div class="env-choices">${flows}</div>
       </section>
       <section class="env-step">
@@ -404,6 +420,9 @@ export function bindEnv(sidebar, store, ui) {
     button.addEventListener("click", () => ui.setEnvFlow(button.dataset.flow));
   });
   sidebar.querySelector("#env-pick")?.addEventListener("click", () => ui.setTool("select"));
+  sidebar.querySelector("#show-env-legend")?.addEventListener("change", (event) => {
+    ui.setShowEnvLegend(event.target.checked);
+  });
   sidebar.querySelector("#env-pa")?.addEventListener("change", (event) => {
     const roomId = ui.selection?.kind === "room" ? ui.selection.ids[0] : null;
     if (!roomId) return;
@@ -451,6 +470,29 @@ export function bindEnv(sidebar, store, ui) {
       ui.setTool("select");
       ui.select({ kind: button.dataset.focusKind, ids: [button.dataset.focusId] });
     });
+  });
+  sidebar.querySelector("#env-flow-flip")?.addEventListener("click", () => {
+    const flowId = ui.selection?.kind === "flow" ? ui.selection.ids[0] : null;
+    if (!flowId) return;
+    store.update((plan) => {
+      const flow = plan.flows.find((entry) => entry.id === flowId);
+      if (!flow) return;
+      const x1 = flow.x1;
+      const y1 = flow.y1;
+      flow.x1 = flow.x2;
+      flow.y1 = flow.y2;
+      flow.x2 = x1;
+      flow.y2 = y1;
+    });
+    refresh();
+  });
+  sidebar.querySelector("#env-flow-del")?.addEventListener("click", () => {
+    const flowId = ui.selection?.kind === "flow" ? ui.selection.ids[0] : null;
+    if (!flowId) return;
+    store.update((plan) => {
+      plan.flows = (plan.flows || []).filter((entry) => entry.id !== flowId);
+    });
+    ui.select(null);
   });
 }
 
@@ -533,6 +575,20 @@ export function drawEnv(ctx, plan, ui, screen, scale, rect) {
       ctx.restore();
     }
     arrow(ctx, screen, flow, spec.color, spec.dash, 2.5);
+    if (selected) {
+      for (const point of [{ x: flow.x1, y: flow.y1 }, { x: flow.x2, y: flow.y2 }]) {
+        const at = screen(point.x, point.y);
+        ctx.save();
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#0060b0";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(at.x, at.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
   }
   for (const mark of pressureMarks(plan)) {
     arrow(ctx, screen, mark, "#243040", false, 1.5);
@@ -567,7 +623,7 @@ export function drawEnv(ctx, plan, ui, screen, scale, rect) {
     ctx.fillText(text, x + 12, 27);
     ctx.restore();
   }
-  legend(ctx, rect);
+  if (ui.showEnvLegend !== false) legend(ctx, rect);
 }
 
 export function gradeFill(room) {

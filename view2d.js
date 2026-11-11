@@ -1,5 +1,5 @@
 ﻿import { lookupItem } from "./catalog.js?v=20261028d";
-import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, paintRoom } from "./env.js?v=20261111f";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, paintRoom } from "./env.js?v=20261111h";
 import {
   centroid,
   edgeGeometry,
@@ -27,7 +27,7 @@ import {
   syncLeaves,
 } from "./openings.js?v=20261022f";
 import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261028d";
-import { snapValue, uid } from "./store.js?v=20261111f";
+import { snapValue, uid } from "./store.js?v=20261111h";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -705,7 +705,10 @@ export function createView2d(canvas, store, ui) {
           const target = plan.rooms.find((entry) => entry.id === room.id);
           if (target) paintRoom(target, ui.envGrade);
         });
+        ui.setTool("select");
         ui.select({ kind: "room", ids: [room.id] });
+      } else {
+        ui.setTool("select");
       }
       pointer.down = false;
       draw();
@@ -720,13 +723,17 @@ export function createView2d(canvas, store, ui) {
     if (flow) {
       const row = store.get().flows.find((entry) => entry.id === flow.id);
       ui.select({ kind: "flow", ids: [flow.id] });
-      drag = {
-        kind: "move-flow",
-        id: flow.id,
-        origin: wpt,
-        pending: true,
-        start: { x1: row.x1, y1: row.y1, x2: row.x2, y2: row.y2 },
-      };
+      if (flow.handle === "start" || flow.handle === "end") {
+        drag = { kind: "edit-flow", id: flow.id, handle: flow.handle, pending: true };
+      } else {
+        drag = {
+          kind: "move-flow",
+          id: flow.id,
+          origin: wpt,
+          pending: true,
+          start: { x1: row.x1, y1: row.y1, x2: row.x2, y2: row.y2 },
+        };
+      }
       draw();
       return true;
     }
@@ -1018,16 +1025,26 @@ export function createView2d(canvas, store, ui) {
       draw();
       return;
     }
-    if (drag.kind === "move-flow") {
+    if (drag.kind === "move-flow" || drag.kind === "edit-flow") {
       if (drag.pending) {
         store.checkpoint();
         drag.pending = false;
       }
-      const dx = wpt.x - drag.origin.x;
-      const dy = wpt.y - drag.origin.y;
       store.mutate((plan) => {
         const flow = plan.flows.find((entry) => entry.id === drag.id);
         if (!flow) return;
+        if (drag.kind === "edit-flow") {
+          if (drag.handle === "start") {
+            flow.x1 = wpt.x;
+            flow.y1 = wpt.y;
+          } else {
+            flow.x2 = wpt.x;
+            flow.y2 = wpt.y;
+          }
+          return;
+        }
+        const dx = wpt.x - drag.origin.x;
+        const dy = wpt.y - drag.origin.y;
         flow.x1 = drag.start.x1 + dx;
         flow.y1 = drag.start.y1 + dy;
         flow.x2 = drag.start.x2 + dx;

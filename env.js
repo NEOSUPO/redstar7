@@ -1,4 +1,4 @@
-import { pointInRoom } from "./geometry.js?v=20261022d";
+﻿import { pointInRoom } from "./geometry.js?v=20261022d";
 import { openingCenter } from "./openings.js?v=20261022f";
 
 export const GRADES = [
@@ -384,7 +384,7 @@ export function envPanel(plan, ui) {
       </section>
       <section class="env-step">
         <h3>3. 動線を引く</h3>
-        <p class="note">赤は人、青は物、緑の破線は廃棄物です。始点から終点までドラッグします。</p>
+        <p class="note">赤は人、青は物、緑の破線は廃棄物です。始点から終点までドラッグします。1本引くと選択に戻ります。続けて引くときは、もう一度種類を選んでください。</p>
         <div class="env-choices">${flows}</div>
       </section>
       <section class="env-step">
@@ -454,27 +454,33 @@ export function bindEnv(sidebar, store, ui) {
   });
 }
 
-function arrow(ctx, screen, flow, color, dashed, width) {
+function arrow(ctx, screen, flow, color, dashed, width, head = true) {
   const a = screen(flow.x1, flow.y1);
   const b = screen(flow.x2, flow.y2);
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  const size = head ? 12 : 0;
+  const tipX = b.x - Math.cos(ang) * size * 0.72;
+  const tipY = b.y - Math.sin(ang) * size * 0.72;
   ctx.save();
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
   ctx.lineWidth = width;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   ctx.setLineDash(dashed ? [10, 7] : []);
   ctx.beginPath();
   ctx.moveTo(a.x, a.y);
-  ctx.lineTo(b.x, b.y);
+  ctx.lineTo(head ? tipX : b.x, head ? tipY : b.y);
   ctx.stroke();
   ctx.setLineDash([]);
-  const ang = Math.atan2(b.y - a.y, b.x - a.x);
-  const size = Math.max(9, width * 4);
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y);
-  ctx.lineTo(b.x - size * Math.cos(ang - 0.42), b.y - size * Math.sin(ang - 0.42));
-  ctx.lineTo(b.x - size * Math.cos(ang + 0.42), b.y - size * Math.sin(ang + 0.42));
-  ctx.closePath();
-  ctx.fill();
+  if (head) {
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - size * Math.cos(ang - 0.45), b.y - size * Math.sin(ang - 0.45));
+    ctx.lineTo(b.x - size * Math.cos(ang + 0.45), b.y - size * Math.sin(ang + 0.45));
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -520,8 +526,13 @@ export function drawEnv(ctx, plan, ui, screen, scale, rect) {
   for (const flow of plan.flows || []) {
     const spec = flowById(flow.kind);
     const selected = ui.selection?.kind === "flow" && ui.selection.ids.includes(flow.id);
-    if (selected) arrow(ctx, screen, flow, "#0060b0", false, 7);
-    arrow(ctx, screen, flow, spec.color, spec.dash, selected ? 3.5 : 2.5);
+    if (selected) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      arrow(ctx, screen, flow, "#0060b0", spec.dash, 6, false);
+      ctx.restore();
+    }
+    arrow(ctx, screen, flow, spec.color, spec.dash, 2.5);
   }
   for (const mark of pressureMarks(plan)) {
     arrow(ctx, screen, mark, "#243040", false, 1.5);

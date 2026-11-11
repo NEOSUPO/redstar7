@@ -1,5 +1,5 @@
 ﻿import { lookupItem } from "./catalog.js?v=20261028d";
-import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, paintRoom } from "./env.js?v=20261111d";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, paintRoom } from "./env.js?v=20261111f";
 import {
   centroid,
   edgeGeometry,
@@ -27,7 +27,7 @@ import {
   syncLeaves,
 } from "./openings.js?v=20261022f";
 import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261028d";
-import { snapValue, uid } from "./store.js?v=20261111d";
+import { snapValue, uid } from "./store.js?v=20261111f";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -750,11 +750,15 @@ export function createView2d(canvas, store, ui) {
 
   function finishFlow(state) {
     const moved = Math.hypot(state.current.x - state.start.x, state.current.y - state.start.y);
-    if (moved < 200) return;
+    if (moved < 200) {
+      ui.setTool("select");
+      return;
+    }
     let id = null;
     store.update((plan) => {
       id = addFlow(plan, state.flowKind, state.start, state.current).id;
     });
+    ui.setTool("select");
     if (id) ui.select({ kind: "flow", ids: [id] });
   }
 
@@ -1066,7 +1070,11 @@ export function createView2d(canvas, store, ui) {
     }
     if (drag?.kind === "move-underlay" || drag?.kind === "resize-underlay") ui.select({ kind: "underlay", ids: ["underlay"] });
     if (drag?.kind === "new-room") finishRoom(drag.start, drag.current);
-    if (drag?.kind === "new-flow") finishFlow(drag);
+    if (drag?.kind === "new-flow") {
+      const draft = drag;
+      drag = null;
+      finishFlow(draft);
+    }
     if (drag?.kind === "marquee") finishMarquee(drag);
     if (drag?.kind === "spin-item" && !drag.pending) {
       const id = drag.id;

@@ -1,5 +1,5 @@
 ﻿import { CATALOG, lookupItem } from "./catalog.js?v=20261028d";
-import { applyEnvRows, envToRows } from "./env.js?v=20261111d";
+import { applyEnvRows, envToRows } from "./env.js?v=20261111f";
 import { centroid, distanceToBoundary, outlinePoints, pointInRoom } from "./geometry.js";
 import { hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
 import { powerToRows, rowsToPower } from "./power.js?v=20261028d";

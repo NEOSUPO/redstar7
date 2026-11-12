@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111k";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111m";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111k";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111k";
+import { bindEnv, envPanel } from "./env.js?v=20261111m";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111m";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
 import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261111k";
+import { createStore, uid } from "./store.js?v=20261111m";
 import { seatItems } from "./surface.js?v=20261028d";
-import { mountSpecs } from "./specs.js?v=20261104m";
-import { createView2d } from "./view2d.js?v=20261111k";
+import { mountSpecs } from "./specs.js?v=20261111m";
+import { createView2d } from "./view2d.js?v=20261111m";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111k");
+    const mod = await import("./view3d.js?v=20261111m");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -568,8 +568,8 @@ function propsPanel() {
       <button type="button" id="group-sel">グループ</button>
       <button type="button" id="ungroup-sel">グループ解除</button>
       <button type="button" id="rotate">回転</button>
-      <button type="button" id="lock-sel">ロック</button>
-      <button type="button" id="unlock-sel">ロック解除</button>
+      <button type="button" id="lock-sel">Lock</button>
+      <button type="button" id="unlock-sel">Unlock</button>
     ` : "";
     return `<div class="props"><h2>${sel.objs.length} 件を選択</h2>${group}<button type="button" id="dup">複製</button><button type="button" id="delete-sel">削除</button></div>`;
   }
@@ -722,8 +722,8 @@ function itemProps(entry) {
   const isLight = !!entry.light;
   const light = isLight ? `
     <label>取付高さ mm<input data-field="z" type="number" min="50" value="${Math.round(entry.z || 0)}" ${read} /></label>
-    <p class="note">床から器具中心までの高さです。点灯すると3Dで下向きに照らします。</p>
-    <label class="check"><input id="light-on" type="checkbox" ${entry.lightOn ? "checked" : ""} /> 点灯</label>
+    <p class="note">床から器具中心までの高さです（500mm未満は天井付近として扱います）。点灯を入れると3Dで下向きに照らします。報告タブの3Dがいちばん分かりやすいです。</p>
+    <label class="check"><input id="light-on" type="checkbox" ${entry.lightOn !== false ? "checked" : ""} /> 点灯</label>
     <label>明るさ 1-10<input id="light-level" type="range" min="1" max="10" value="${entry.lightLevel || 10}" /></label>
     <label>光の色<input data-field="lightColor" data-kind="color" type="color" value="${entry.lightColor || "#fff4d6"}" /></label>
   ` : "";
@@ -734,8 +734,7 @@ function itemProps(entry) {
   const rotField = wall && !isLight ? "" : `<label>角度<input data-field="rot" type="number" step="1" value="${entry.rot}" ${read} /></label>`;
   return `<div class="props">
     <h2>${escapeHtml(entry.name)}</h2>
-    <label class="check"><input id="item-lock" type="checkbox" ${locked ? "checked" : ""} /> ロック</label>
-    <p class="note">${locked ? "ロック中です。解除すると移動、回転、削除、寸法の変更ができます。" : "幅・奥行・高さはここで変えます。平面図と3Dでは、周りの円をドラッグすると1度ずつ回ります。回転ボタンは15度です。"}</p>
+    <p class="note">${locked ? "Lock中です。解除すると移動、回転、削除、寸法の変更ができます。" : "幅・奥行・高さはここで変えます。平面図と3Dでは、周りの円をドラッグすると1度ずつ回ります。回転ボタンは15度です。"}</p>
     <label>幅 mm<input data-field="w" type="number" min="50" value="${Math.round(entry.w)}" ${read} /></label>
     <label>奥行 mm<input data-field="d" type="number" min="50" value="${Math.round(entry.d)}" ${read} /></label>
     <label>高さ mm<input data-field="h" type="number" min="50" value="${Math.round(entry.h)}" ${read} /></label>
@@ -763,6 +762,7 @@ function itemProps(entry) {
     ${wall || locked ? "" : `<button type="button" id="rotate">回転</button>`}
     <button type="button" id="dup">複製</button>
     <button type="button" id="delete-sel">削除</button>
+    <label class="check lock-check">Lock<input id="item-lock" type="checkbox" ${locked ? "checked" : ""} /></label>
   </div>`;
 }
 

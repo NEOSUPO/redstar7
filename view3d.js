@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111k";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111m";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111k";
+import { snapValue } from "./store.js?v=20261111m";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -276,19 +276,20 @@ export function createView3d(canvas, store, ui) {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.setClearColor(hq ? 0xd4e3ee : 0xe4eeea);
     sun.castShadow = hq;
+    const lit = (plan.items || []).some((entry) => (entry.light || entry.catalogId === "light") && entry.lightOn !== false);
     if (hq) {
-      sun.intensity = 1.35;
+      sun.intensity = lit ? 0.55 : 1.35;
       sun.color.set(0xfff1dd);
-      ambient.intensity = 0.05;
-      hemi.intensity = 0.24;
+      ambient.intensity = lit ? 0.03 : 0.05;
+      hemi.intensity = lit ? 0.12 : 0.24;
       scene.environment = ensureEnv();
       fitShadow(plan);
     } else {
-      sun.intensity = 1.1 * level;
+      sun.intensity = (lit ? 0.7 : 1.1) * level;
       sun.color.set(0xffffff);
       sun.position.set(4000, 8000, 2000);
       sun.target.position.set(0, 0, 0);
-      ambient.intensity = 0.55 * level;
+      ambient.intensity = (lit ? 0.28 : 0.55) * level;
       hemi.intensity = 0;
       scene.environment = null;
     }
@@ -453,12 +454,15 @@ export function createView3d(canvas, store, ui) {
       finishMaterial({ color: entry.color || cat?.color || "#999999", kind }),
     );
     dress(mesh, kind);
+    const isLight = !!(entry.light || entry.catalogId === "light" || cat?.light);
     const top = counterTop(plan.items, entry);
     let y = lift + top + entry.h / 2;
-    if (entry.light) {
+    if (isLight) {
       const half = Math.max(50, entry.h) / 2;
       const raw = Number(entry.z);
-      y = lift + (Number.isFinite(raw) && raw > 0 ? raw : ceiling - drop - half);
+      const fallback = Math.max(half + 200, ceiling - drop - half);
+      // Scene is millimetres. Near-floor leftovers are treated as ceiling mounts.
+      y = lift + (Number.isFinite(raw) && raw >= 500 ? raw : fallback);
     } else if (entry.place === "ceiling") {
       y = ceiling - drop - entry.h / 2;
     } else if (entry.place === "wall") {
@@ -466,26 +470,37 @@ export function createView3d(canvas, store, ui) {
     }
     mesh.position.set(entry.x, y, entry.y);
     mesh.rotation.y = (-entry.rot * Math.PI) / 180;
+    if (isLight && entry.lightOn !== false && mesh.material) {
+      mesh.material.emissive = new THREE.Color(entry.lightColor || "#fff4d6");
+      mesh.material.emissiveIntensity = hq ? 1.4 : 0.9;
+    }
     tag(mesh, { pick: "item", id: entry.id }, chosen("item", entry.id));
     root.add(mesh);
-    if (entry.light && entry.lightOn) {
-      const strength = (Number(entry.lightLevel) || 10) / 10 * (hq ? 7 : 4) * level;
-      const fall = Math.max(1800, y - lift + 800);
+    if (isLight && entry.lightOn !== false) {
+      // Physically-correct lights in r160 assume metre-ish units; this plan is in mm.
+      const dim = (Number(entry.lightLevel) || 10) / 10;
+      const strength = dim * level * (hq ? 2.4e6 : 1.4e6);
+      const height = Math.max(400, y - lift);
+      const fall = Math.max(2400, height + 1200);
       const span = Math.max(entry.w, entry.d, 400);
-      const angle = Math.min(1.15, Math.max(0.4, Math.atan2(span * 0.95, Math.max(200, y - lift))));
-      const spot = new THREE.SpotLight(entry.lightColor || "#fff4d6", strength, fall * 1.35, angle, 0.45, 1.4);
-      spot.position.set(entry.x, y, entry.y);
+      const angle = Math.min(1.2, Math.max(0.45, Math.atan2(span * 1.1, height)));
+      const color = entry.lightColor || "#fff4d6";
+      const spot = new THREE.SpotLight(color, strength, fall * 1.5, angle, 0.5, 2);
+      spot.position.set(entry.x, y - Math.min(30, entry.h * 0.4), entry.y);
       spot.target.position.set(entry.x, lift + 1, entry.y);
+      const fill = new THREE.PointLight(color, strength * 0.22, fall * 1.2, 2);
+      fill.position.set(entry.x, y, entry.y);
       if (hq) {
         spot.castShadow = true;
         spot.shadow.mapSize.set(1024, 1024);
         spot.shadow.bias = -0.00015;
         spot.shadow.normalBias = 18;
         spot.shadow.camera.near = 40;
-        spot.shadow.camera.far = fall * 1.5;
+        spot.shadow.camera.far = fall * 1.6;
       }
       root.add(spot);
       root.add(spot.target);
+      root.add(fill);
     }
   }
 
@@ -614,10 +629,10 @@ export function createView3d(canvas, store, ui) {
     const room = roomFor(host || entry, plan);
     const lift = Number(room?.raisedFloor) || 0;
     const drop = Number(room?.dropCeiling) || 0;
-    if (entry.light) {
+    if (entry.light || entry.catalogId === "light") {
       const half = Math.max(50, entry.h) / 2;
       const raw = Number(entry.z);
-      const center = Number.isFinite(raw) && raw > 0 ? raw : ceiling - drop - half;
+      const center = Number.isFinite(raw) && raw >= 500 ? raw : Math.max(half + 200, ceiling - drop - half);
       return lift + center - half;
     }
     if (entry.place === "ceiling") return ceiling - drop - entry.h;

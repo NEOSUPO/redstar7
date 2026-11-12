@@ -1,5 +1,5 @@
 ﻿import { lookupItem } from "./catalog.js?v=20261028d";
-import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111k";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111m";
 import {
   centroid,
   edgeGeometry,
@@ -27,7 +27,7 @@ import {
   syncLeaves,
 } from "./openings.js?v=20261022f";
 import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261028d";
-import { snapValue, uid } from "./store.js?v=20261111k";
+import { snapValue, uid } from "./store.js?v=20261111m";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -543,11 +543,11 @@ export function createView2d(canvas, store, ui) {
     }
     if (entry.locked) {
       ctx.fillStyle = "#1d4e89";
-      ctx.fillRect(w / 2 - 14, -d / 2, 14, 14);
+      ctx.fillRect(w / 2 - 28, -d / 2, 28, 12);
       ctx.fillStyle = "#fff";
-      ctx.font = "10px sans-serif";
+      ctx.font = "9px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("鍵", w / 2 - 7, -d / 2 + 11);
+      ctx.fillText("Lock", w / 2 - 14, -d / 2 + 9);
     }
     ctx.restore();
   }

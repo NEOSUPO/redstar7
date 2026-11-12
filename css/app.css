@@ -496,12 +496,14 @@ input[type="color"] { height: 36px; padding: 2px; }
 .env-now { background: #e7f6ec; border-radius: 8px; padding: 8px; font-size: 12px; font-weight: 700; line-height: 1.45; }
 .env-warn { background: #fff6e8; color: #8a4b00; }
 .env-flow-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.props label.check,
 .side-block label.check,
-.env-steps label.check {
+.env-steps label.check,
+dialog label.check {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
@@ -511,8 +513,18 @@ input[type="color"] { height: 36px; padding: 2px; }
   background: #fff;
   border: 1px solid var(--line);
 }
+.props label.check.lock-check {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  margin-top: 2px;
+  font-size: 11px;
+  border-radius: 999px;
+}
+.props label.check input,
 .side-block label.check input,
-.env-steps label.check input {
+.env-steps label.check input,
+dialog label.check input {
   width: auto;
   margin: 0;
   padding: 0;

@@ -293,7 +293,7 @@ function buildView(plan, state, selected) {
     : !visible.length
       ? `<tr><td colspan="${6 + columns.length}">条件に合う器具はありません。</td></tr>`
       : "";
-  const heads = ["名称", "部屋", "寸法", "グループ", ...columns.map(([, label]) => label), "ロック", "個別"];
+  const heads = ["名称", "部屋", "寸法", "グループ", ...columns.map(([, label]) => label), "Lock", "個別"];
   const html = `
     <table>
       <thead><tr>${heads.map((label, index) => `<th${index === 2 ? ` class="num" title="幅×奥行×高さ mm"` : index === 1 ? ` title="置いてある部屋"` : ""}>${label}</th>`).join("")}</tr></thead>
@@ -357,7 +357,7 @@ function rowHtml(row, room, numbers, columns, on) {
     `<td class="num">${Math.round(entry.w)}×${Math.round(entry.d)}×${Math.round(entry.h)}</td>`,
     `<td>${entry.groupId ? `グループ ${numbers.get(entry.groupId)}` : "—"}</td>`,
     ...columns.map(([key]) => `<td>${escapeHtml(columnText(entry, key))}</td>`),
-    `<td><input type="checkbox" data-lock="${escapeHtml(entry.id)}" ${entry.locked ? "checked" : ""} aria-label="${name}をロック" /></td>`,
+    `<td><input type="checkbox" data-lock="${escapeHtml(entry.id)}" ${entry.locked ? "checked" : ""} aria-label="${name}を Lock" /></td>`,
     `<td>${entry.groupId ? `<button type="button" class="linkish" data-solo="${escapeHtml(entry.id)}">個別</button>` : ""}</td>`,
   ];
   return `<tr class="${on ? "on" : ""}" data-id="${escapeHtml(entry.id)}">${cells.join("")}</tr>`;

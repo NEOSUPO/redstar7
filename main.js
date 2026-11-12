@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111i";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111j";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111i";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111i";
+import { bindEnv, envPanel } from "./env.js?v=20261111j";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111j";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
 import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261111i";
+import { createStore, uid } from "./store.js?v=20261111j";
 import { seatItems } from "./surface.js?v=20261028d";
 import { mountSpecs } from "./specs.js?v=20261104m";
-import { createView2d } from "./view2d.js?v=20261111i";
+import { createView2d } from "./view2d.js?v=20261111j";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111i");
+    const mod = await import("./view3d.js?v=20261111j");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -626,8 +626,9 @@ function roomProps(room) {
   const pick = ui.wallPick?.roomId === room.id ? ui.wallPick : null;
   const edge = pick?.edgeIndex != null ? room.edges?.[pick.edgeIndex] : null;
   return `<div class="props">
-    <h2>${escapeHtml(room.name)}</h2>
+    <h2>${escapeHtml(room.name || "部屋")}</h2>
     <p class="note">床面積 ${(roomArea(room) / 1e6).toFixed(2)} ㎡。頂点をドラッグすると斜めになります。辺を選んで頂点や円弧を足します。Excelの部屋はマスなので、斜めと円弧は段差になります。</p>
+    <label>名称<input data-field="name" data-kind="text" type="text" value="${escapeHtml(room.name || "")}" /></label>
     <label>幅 mm<input data-field="w" type="number" value="${Math.round(room.w)}" /></label>
     <label>奥行 mm<input data-field="h" type="number" value="${Math.round(room.h)}" /></label>
     <label>床材<input data-field="floorFinish" data-kind="text" type="text" value="${escapeHtml(room.floorFinish || "床")}" /></label>

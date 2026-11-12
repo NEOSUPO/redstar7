@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111n";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111o";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111n";
+import { snapValue } from "./store.js?v=20261111o";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -480,7 +480,8 @@ export function createView3d(canvas, store, ui) {
     if (!hideLightMesh) root.add(mesh);
     if (isLight && entry.lightOn !== false) {
       // Physically-correct lights in r160 assume metre-ish units; this plan is in mm.
-      const dim = (Number(entry.lightLevel) || 10) / 10;
+      // Scale 1–20: 10 matches the old maximum, 20 is twice as bright.
+      const dim = Math.min(20, Math.max(1, Number(entry.lightLevel) || 10)) / 10;
       const strength = dim * level * (hq ? 2.4e6 : 1.4e6);
       const height = Math.max(400, y - lift);
       const fall = Math.max(2400, height + 1200);

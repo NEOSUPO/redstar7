@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111n";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111o";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111n";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111n";
+import { bindEnv, envPanel } from "./env.js?v=20261111o";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111o";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
 import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261111n";
+import { createStore, uid } from "./store.js?v=20261111o";
 import { seatItems } from "./surface.js?v=20261028d";
-import { mountSpecs } from "./specs.js?v=20261111n";
-import { createView2d } from "./view2d.js?v=20261111n";
+import { mountSpecs } from "./specs.js?v=20261111o";
+import { createView2d } from "./view2d.js?v=20261111o";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111n");
+    const mod = await import("./view3d.js?v=20261111o");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -729,7 +729,7 @@ function itemProps(entry) {
     <label>取付高さ mm<input data-field="z" type="number" min="50" value="${Math.round(entry.z || 0)}" ${read} /></label>
     <p class="note">床から器具中心までの高さです（500mm未満は天井付近として扱います）。点灯を入れると3Dで下向きに照らします。報告タブの3Dがいちばん分かりやすいです。</p>
     <label class="check"><input id="light-on" type="checkbox" ${entry.lightOn !== false ? "checked" : ""} /> 点灯</label>
-    <label>明るさ 1-10<input id="light-level" type="range" min="1" max="10" value="${entry.lightLevel || 10}" /></label>
+    <label>明るさ 1-20<input id="light-level" type="range" min="1" max="20" value="${clamp(Number(entry.lightLevel) || 10, 1, 20)}" /></label>
     <label>光の色<input data-field="lightColor" data-kind="color" type="color" value="${entry.lightColor || "#fff4d6"}" /></label>
   ` : "";
   const home = entry.residential ? `<label>デザイン<input data-field="design" data-kind="text" type="text" value="${escapeHtml(entry.design || "")}" /></label>` : "";
@@ -855,7 +855,7 @@ function bindProps() {
   });
   sidebar.querySelector("#light-level")?.addEventListener("change", (event) => {
     updateSelectedItem((entry) => {
-      entry.lightLevel = Number(event.target.value);
+      entry.lightLevel = clamp(Number(event.target.value) || 10, 1, 20);
     });
   });
   sidebar.querySelector("#delete-sel")?.addEventListener("click", deleteSelection);

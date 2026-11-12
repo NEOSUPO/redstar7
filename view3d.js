@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111i";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111k";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111i";
+import { snapValue } from "./store.js?v=20261111k";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -455,16 +455,37 @@ export function createView3d(canvas, store, ui) {
     dress(mesh, kind);
     const top = counterTop(plan.items, entry);
     let y = lift + top + entry.h / 2;
-    if (entry.place === "ceiling") y = ceiling - drop - entry.h / 2;
-    if (entry.place === "wall") y = lift + (entry.z || entry.h / 2);
+    if (entry.light) {
+      const half = Math.max(50, entry.h) / 2;
+      const raw = Number(entry.z);
+      y = lift + (Number.isFinite(raw) && raw > 0 ? raw : ceiling - drop - half);
+    } else if (entry.place === "ceiling") {
+      y = ceiling - drop - entry.h / 2;
+    } else if (entry.place === "wall") {
+      y = lift + (entry.z || entry.h / 2);
+    }
     mesh.position.set(entry.x, y, entry.y);
     mesh.rotation.y = (-entry.rot * Math.PI) / 180;
     tag(mesh, { pick: "item", id: entry.id }, chosen("item", entry.id));
     root.add(mesh);
     if (entry.light && entry.lightOn) {
-      const bulb = new THREE.PointLight(entry.lightColor || "#fff4d6", (Number(entry.lightLevel) || 1) / 10 * 4 * level, 4500);
-      bulb.position.set(entry.x, y, entry.y);
-      root.add(bulb);
+      const strength = (Number(entry.lightLevel) || 10) / 10 * (hq ? 7 : 4) * level;
+      const fall = Math.max(1800, y - lift + 800);
+      const span = Math.max(entry.w, entry.d, 400);
+      const angle = Math.min(1.15, Math.max(0.4, Math.atan2(span * 0.95, Math.max(200, y - lift))));
+      const spot = new THREE.SpotLight(entry.lightColor || "#fff4d6", strength, fall * 1.35, angle, 0.45, 1.4);
+      spot.position.set(entry.x, y, entry.y);
+      spot.target.position.set(entry.x, lift + 1, entry.y);
+      if (hq) {
+        spot.castShadow = true;
+        spot.shadow.mapSize.set(1024, 1024);
+        spot.shadow.bias = -0.00015;
+        spot.shadow.normalBias = 18;
+        spot.shadow.camera.near = 40;
+        spot.shadow.camera.far = fall * 1.5;
+      }
+      root.add(spot);
+      root.add(spot.target);
     }
   }
 
@@ -593,6 +614,12 @@ export function createView3d(canvas, store, ui) {
     const room = roomFor(host || entry, plan);
     const lift = Number(room?.raisedFloor) || 0;
     const drop = Number(room?.dropCeiling) || 0;
+    if (entry.light) {
+      const half = Math.max(50, entry.h) / 2;
+      const raw = Number(entry.z);
+      const center = Number.isFinite(raw) && raw > 0 ? raw : ceiling - drop - half;
+      return lift + center - half;
+    }
     if (entry.place === "ceiling") return ceiling - drop - entry.h;
     if (entry.place === "wall") return lift + (Number(entry.z) || 0);
     return lift + counterTop(plan.items, entry);

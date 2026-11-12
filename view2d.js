@@ -1,5 +1,5 @@
 ﻿import { lookupItem } from "./catalog.js?v=20261028d";
-import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111i";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111k";
 import {
   centroid,
   edgeGeometry,
@@ -27,7 +27,7 @@ import {
   syncLeaves,
 } from "./openings.js?v=20261022f";
 import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261028d";
-import { snapValue, uid } from "./store.js?v=20261111i";
+import { snapValue, uid } from "./store.js?v=20261111k";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -1373,7 +1373,9 @@ export function createView2d(canvas, store, ui) {
         w: cat.w,
         d: cat.d,
         h: cat.place === "ceiling" ? Math.min(cat.h, ceiling) : cat.h,
-        z: cat.place === "wall" ? cat.mountHeight || cat.h / 2 : 0,
+        z: cat.light
+          ? Math.max(cat.h / 2, ceiling - Math.min(cat.h, ceiling) / 2)
+          : (cat.place === "wall" ? cat.mountHeight || cat.h / 2 : 0),
         price: cat.price == null || cat.price === "" ? null : Number(cat.price),
         groupId: null,
         roomId: placed.roomId || null,

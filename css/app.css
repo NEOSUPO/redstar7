@@ -496,6 +496,28 @@ input[type="color"] { height: 36px; padding: 2px; }
 .env-now { background: #e7f6ec; border-radius: 8px; padding: 8px; font-size: 12px; font-weight: 700; line-height: 1.45; }
 .env-warn { background: #fff6e8; color: #8a4b00; }
 .env-flow-tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.side-block label.check,
+.env-steps label.check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.side-block label.check input,
+.env-steps label.check input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
 .note { color: #5d6f6c; font-size: 11px; line-height: 1.5; }
 .note a { color: var(--blue); }
 .power-warn { color: #8a4b00; background: #fff6e8; border-radius: 10px; padding: 6px 8px; }

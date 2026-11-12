@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111h";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111i";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111h";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111h";
+import { bindEnv, envPanel } from "./env.js?v=20261111i";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111i";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
 import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261111h";
+import { createStore, uid } from "./store.js?v=20261111i";
 import { seatItems } from "./surface.js?v=20261028d";
 import { mountSpecs } from "./specs.js?v=20261104m";
-import { createView2d } from "./view2d.js?v=20261111h";
+import { createView2d } from "./view2d.js?v=20261111i";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111h");
+    const mod = await import("./view3d.js?v=20261111i");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -1492,7 +1492,7 @@ function clamp(value, min, max) {
 
 function createController() {
   const listeners = new Set();
-  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
+  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
   function emit() {
     listeners.forEach((fn) => fn());
   }
@@ -1502,6 +1502,7 @@ function createController() {
     get showWalker() { return state.showWalker; },
     get showEnv() { return state.showEnv; },
     get showEnvLegend() { return state.showEnvLegend; },
+    get envLegendPos() { return state.envLegendPos; },
     get envGrade() { return state.envGrade; },
     get envFlow() { return state.envFlow; },
     get tab() { return state.tab; },
@@ -1550,6 +1551,12 @@ function createController() {
       state.showEnvLegend = !!shown;
       localStorage.setItem("neosupo-star-beta7-env-legend", state.showEnvLegend ? "1" : "0");
       emit();
+    },
+    setEnvLegendPos(pos, opts = {}) {
+      if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) state.envLegendPos = null;
+      else state.envLegendPos = { x: Math.round(pos.x), y: Math.round(pos.y) };
+      localStorage.setItem("neosupo-star-beta7-env-legend-pos", JSON.stringify(state.envLegendPos));
+      if (!opts.silent) emit();
     },
     setEnvGrade(id) {
       state.envGrade = id || "";

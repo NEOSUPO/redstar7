@@ -1,5 +1,5 @@
 ﻿import { lookupItem } from "./catalog.js?v=20261028d";
-import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, paintRoom } from "./env.js?v=20261111h";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111i";
 import {
   centroid,
   edgeGeometry,
@@ -27,7 +27,7 @@ import {
   syncLeaves,
 } from "./openings.js?v=20261022f";
 import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261028d";
-import { snapValue, uid } from "./store.js?v=20261111h";
+import { snapValue, uid } from "./store.js?v=20261111i";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -698,6 +698,19 @@ export function createView2d(canvas, store, ui) {
   }
 
   function handleEnvPointer(wpt) {
+    const view = canvas.getBoundingClientRect();
+    const legend = hitLegend(ui, pointer.sx, pointer.sy, { width: view.width, height: view.height });
+    if (legend) {
+      drag = {
+        kind: "move-legend",
+        ox: pointer.sx,
+        oy: pointer.sy,
+        startX: legend.x,
+        startY: legend.y,
+      };
+      draw();
+      return true;
+    }
     if (ui.tool === "env-grade") {
       const room = hitRoom(wpt.x, wpt.y);
       if (room) {
@@ -1000,9 +1013,12 @@ export function createView2d(canvas, store, ui) {
     pointer.sy = event.clientY - rect.top;
     const wpt = world(pointer.sx, pointer.sy);
     if (!pointer.down || !drag) {
-      const spinHit = showPlacedItems() ? hitSpin(wpt.x, wpt.y) : null;
-      canvas.style.cursor = spinHit ? "grab" : "";
-      const hit = spinHit ? null : (showPlacedItems() ? hitItem(wpt.x, wpt.y) : null);
+      const legendHit = ui.tab === "env" || (ui.tab === "present" && ui.showEnv)
+        ? hitLegend(ui, pointer.sx, pointer.sy, { width: rect.width, height: rect.height })
+        : null;
+      const spinHit = legendHit ? null : (showPlacedItems() ? hitSpin(wpt.x, wpt.y) : null);
+      canvas.style.cursor = legendHit || spinHit ? "grab" : "";
+      const hit = legendHit || spinHit ? null : (showPlacedItems() ? hitItem(wpt.x, wpt.y) : null);
       const next = hit?.id || null;
       if (next !== hoverId) {
         hoverId = next;
@@ -1022,6 +1038,14 @@ export function createView2d(canvas, store, ui) {
     }
     if (drag.kind === "new-room" || drag.kind === "marquee" || drag.kind === "new-flow") {
       drag.current = drag.kind === "new-room" ? snapPoint(wpt) : wpt;
+      draw();
+      return;
+    }
+    if (drag.kind === "move-legend") {
+      ui.setEnvLegendPos({
+        x: drag.startX + (pointer.sx - drag.ox),
+        y: drag.startY + (pointer.sy - drag.oy),
+      }, { silent: true });
       draw();
       return;
     }
@@ -1086,6 +1110,9 @@ export function createView2d(canvas, store, ui) {
       if (moved < 4) ui.select(null);
     }
     if (drag?.kind === "move-underlay" || drag?.kind === "resize-underlay") ui.select({ kind: "underlay", ids: ["underlay"] });
+    if (drag?.kind === "move-legend") {
+      ui.setEnvLegendPos(ui.envLegendPos);
+    }
     if (drag?.kind === "new-room") finishRoom(drag.start, drag.current);
     if (drag?.kind === "new-flow") {
       const draft = drag;

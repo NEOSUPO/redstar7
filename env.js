@@ -384,7 +384,6 @@ export function envPanel(plan, ui) {
     <div class="side-block env-steps">
       <h2>環境</h2>
       <p class="env-now">${escapeHtml(envPrompt(ui))}</p>
-      <label class="check"><input id="show-env-legend" type="checkbox" ${ui.showEnvLegend !== false ? "checked" : ""} /> 凡例を表示</label>
       <section class="env-step">
         <h3>1. 清浄度を塗る</h3>
         <p class="note">部屋を1つ塗ると選択に戻ります。続けて塗るときは、もう一度色を選んでください。</p>
@@ -407,6 +406,8 @@ export function envPanel(plan, ui) {
         <h3>確認</h3>
         ${checks}
       </section>
+      <label class="check"><input id="show-env-legend" type="checkbox" ${ui.showEnvLegend !== false ? "checked" : ""} />凡例を表示</label>
+      <p class="note">図面上の凡例は、パネルをドラッグして動かせます。</p>
     </div>
   `;
 }
@@ -526,39 +527,61 @@ function arrow(ctx, screen, flow, color, dashed, width, head = true) {
   ctx.restore();
 }
 
-function legend(ctx, rect) {
-  const rows = [
+function legendRows() {
+  return [
     ...GRADES.map((grade) => ({ color: grade.color, dash: false, label: grade.id === "N" ? "一般環境" : grade.id === "A" ? "無菌操作区域" : `清浄度区域 ${grade.name}` })),
     ...FLOWS.map((flow) => ({ color: flow.color, dash: flow.dash, label: flow.name })),
   ];
+}
+
+export function legendBox(ui, rect) {
+  const rows = legendRows();
   const width = 168;
   const height = 16 + rows.length * 16;
-  const x = 12;
-  const y = Math.max(12, rect.height - height - 12);
+  let x = Number(ui.envLegendPos?.x);
+  let y = Number(ui.envLegendPos?.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) {
+    x = 12;
+    y = Math.max(12, rect.height - height - 12);
+  }
+  x = Math.min(Math.max(8, x), Math.max(8, rect.width - width - 8));
+  y = Math.min(Math.max(8, y), Math.max(8, rect.height - height - 8));
+  return { x, y, width, height, rows };
+}
+
+export function hitLegend(ui, sx, sy, rect) {
+  if (ui.showEnvLegend === false || !envVisible(ui)) return null;
+  const box = legendBox(ui, rect);
+  if (sx < box.x || sy < box.y || sx > box.x + box.width || sy > box.y + box.height) return null;
+  return box;
+}
+
+function legend(ctx, ui, rect) {
+  const box = legendBox(ui, rect);
   ctx.save();
   ctx.fillStyle = "rgba(255,255,255,0.94)";
   ctx.strokeStyle = "rgba(36,48,64,0.18)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.roundRect(x, y, width, height, 8);
+  ctx.roundRect(box.x, box.y, box.width, box.height, 8);
   ctx.fill();
   ctx.stroke();
   ctx.font = "11px sans-serif";
   ctx.textBaseline = "middle";
-  rows.forEach((row, index) => {
-    const yy = y + 14 + index * 16;
+  box.rows.forEach((row, index) => {
+    const yy = box.y + 14 + index * 16;
     ctx.strokeStyle = row.color;
     ctx.fillStyle = row.color;
     ctx.lineWidth = 2;
     ctx.setLineDash(row.dash ? [5, 4] : []);
     ctx.beginPath();
-    ctx.moveTo(x + 10, yy);
-    ctx.lineTo(x + 28, yy);
+    ctx.moveTo(box.x + 10, yy);
+    ctx.lineTo(box.x + 28, yy);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = "#243040";
     ctx.textAlign = "left";
-    ctx.fillText(row.label, x + 36, yy);
+    ctx.fillText(row.label, box.x + 36, yy);
   });
   ctx.restore();
 }
@@ -623,7 +646,7 @@ export function drawEnv(ctx, plan, ui, screen, scale, rect) {
     ctx.fillText(text, x + 12, 27);
     ctx.restore();
   }
-  if (ui.showEnvLegend !== false) legend(ctx, rect);
+  if (ui.showEnvLegend !== false) legend(ctx, ui, rect);
 }
 
 export function gradeFill(room) {

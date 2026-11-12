@@ -1,4 +1,4 @@
-import { nearestEdge, pointInRoom } from "./geometry.js?v=20261022d";
+﻿import { nearestEdge, pointInRoom } from "./geometry.js?v=20261022d";
 
 const PINK = "#d4145a";
 const BENCHES = new Set(["bench", "sink", "balance"]);
@@ -890,7 +890,6 @@ export function powerPanel(plan, ui) {
   return `
     <div class="side-block">
       <h2>配電</h2>
-      <p class="note">このタブのときだけ、図面に配電を表示します。線は選んだ回路だけ引きます。</p>
       <button type="button" id="power-select" class="${ui.tool === "select" ? "active" : ""}">選択</button>
       <button type="button" id="power-panel" class="${ui.tool === "power" && ui.powerSymbol === "panel" ? "active" : ""}">分電盤を置く</button>
       <button type="button" id="power-suggest">専用の案を入れる</button>
@@ -909,7 +908,7 @@ export function powerPanel(plan, ui) {
       <div class="phase-track"><span style="width:${Math.round((load.l1 / max) * 100)}%"></span></div>
       <p class="note">L2 ${load.l2}A</p>
       <div class="phase-track"><span style="width:${Math.round((load.l2 / max) * 100)}%"></span></div>
-      <p class="note">三相 ${load.three}A。見込みであり、計算書ではありません。</p>
+      <p class="note">三相 ${load.three}A</p>
     </div>
     <div class="side-block">
       <h2>確認</h2>

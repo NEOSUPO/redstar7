@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111p";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111q";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111p";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111p";
+import { bindEnv, envPanel } from "./env.js?v=20261111q";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111q";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
-import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261111p";
+import { bindPower, powerPanel } from "./power.js?v=20261111q";
+import { createStore, uid } from "./store.js?v=20261111q";
 import { seatItems } from "./surface.js?v=20261028d";
-import { mountSpecs } from "./specs.js?v=20261111p";
-import { createView2d } from "./view2d.js?v=20261111p";
+import { mountSpecs } from "./specs.js?v=20261111q";
+import { createView2d } from "./view2d.js?v=20261111q";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111p");
+    const mod = await import("./view3d.js?v=20261111q");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -292,13 +292,6 @@ function markViewMode(next) {
   const walking = next === "walk";
   document.querySelector("#sky").classList.toggle("active", !walking);
   document.querySelector("#walk").classList.toggle("active", walking);
-  const help = document.querySelector("#view-help");
-  if (!help) return;
-  help.textContent = walking
-    ? "カーソルで移動（Ctrl押しながら左右で視点移動）Shiftで早く移動"
-    : ui.tab === "present"
-      ? "ドラッグで見下ろします。キャラクターは矢印キーかWASDで歩き、進む方向を向きます。マウスで選んで移動できます。壁と配置した器具を越えません。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。"
-      : "ドラッグで見下ろします。右ドラッグで図面を移動し、ホイールと拡大・縮小で寄り引きします。";
 }
 
 function markDoors(open) {
@@ -443,7 +436,6 @@ function layoutPanel() {
     </div>
     <div class="side-block">
       <h2>開口</h2>
-      <p class="note">壁をクリックして穴を作ります。同じ線上で重なる隣室の壁も一緒に開きます。複製はできません。</p>
       <button type="button" data-opening="full" class="${ui.tool === "opening" && ui.openingPreset === "full" ? "active" : ""}">壁抜き</button>
       <button type="button" data-opening="hole" class="${ui.tool === "opening" && ui.openingPreset === "hole" ? "active" : ""}">開口部</button>
       <button type="button" data-opening="waist" class="${ui.tool === "opening" && ui.openingPreset === "waist" ? "active" : ""}">腰壁</button>
@@ -465,19 +457,17 @@ function layoutPanel() {
           ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option value="${n}" ${plan.settings.division === n ? "selected" : ""}>1/${n}</option>`).join("")}
         </select>
       </label>
-      <p class="note">スナップは壁厚の半分（${(Number(plan.settings.wall) || 150) / 2}mm）です。マス目の線にも止まります。</p>
     </div>
     <div class="side-block">
       <h2>下絵</h2>
       <label>画像<input id="underlay-file" type="file" accept="image/*" /></label>
       ${underlay ? `
-        <p class="note">${escapeHtml(underlay.name || "下絵")}。図面でクリックして選び、角をドラッグすると縦横比を保って大きさが変わります。</p>
         <label>X mm<input data-underlay="x" type="number" value="${Math.round(underlay.x)}" /></label>
         <label>Y mm<input data-underlay="y" type="number" value="${Math.round(underlay.y)}" /></label>
         <label>幅 mm<input data-underlay="w" type="number" min="100" value="${Math.round(underlay.w)}" /></label>
         <label>高さ mm<input data-underlay="h" type="number" min="100" value="${Math.round(underlay.h)}" /></label>
         <button type="button" id="underlay-clear">下絵を外す</button>
-      ` : `<p class="note">画像を選ぶと、図面の上で大きさを合わせられます。</p>`}
+      ` : ""}
     </div>
     ${propsPanel()}
   `;
@@ -513,7 +503,7 @@ function itemPanel() {
       <label class="check"><input id="custom-home" type="checkbox" /> 設備</label>
       <button type="button" id="add-custom">カタログに追加</button>
       <label>記入例を読み込む<input id="import-catalog" type="file" accept=".csv,text/csv" /></label>
-      <p id="catalog-note" class="note"><span id="catalog-result"></span>記入例の読み込みはこのブラウザだけに追加します。記入例の行は読み込みません。ファイルはUTF-8のCSVです。<a href="#" id="catalog-template">記入例をダウンロード</a></p>
+      <p id="catalog-note" class="note"><span id="catalog-result"></span><a href="#" id="catalog-template">記入例をダウンロード</a></p>
     </div>
     ${propsPanel()}
   `;
@@ -542,7 +532,6 @@ function presentPanel() {
   return `
     <div class="side-block">
       <h2>視点リスト</h2>
-      <p class="note">3D のカメラ位置を保存します。明るさはプラン全体で 3 段階です。</p>
       <label>明るさ
         <select id="brightness">
           <option value="0" ${level === 0 ? "selected" : ""}>暗い</option>
@@ -550,18 +539,15 @@ function presentPanel() {
           <option value="2" ${level === 2 ? "selected" : ""}>明るい</option>
         </select>
       </label>
-      <p class="note">このタブの3Dは高画質です。間取、配置、配電の3Dは従来の表示です。</p>
       <div class="tool-row">
         <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
         <button type="button" id="lights-toggle" class="${ui.showLights !== false ? "active" : ""}" aria-pressed="${ui.showLights !== false ? "true" : "false"}">${ui.showLights !== false ? "照明を隠す" : "照明を表示"}</button>
         <button type="button" id="world-light-toggle" class="${ui.worldLight !== false ? "active" : ""}" aria-pressed="${ui.worldLight !== false ? "true" : "false"}">${ui.worldLight !== false ? "全体照明ON" : "全体照明をOFF"}</button>
       </div>
-      <p class="note">照明を隠しても、点灯中の光源はそのまま床を照らします。全体照明をOFFにすると、器具の点灯だけが空間を照らします（器具が無ければ真っ暗です）。</p>
       <label class="check"><input id="show-env" type="checkbox" ${ui.showEnv ? "checked" : ""} /> 環境の色と矢印を表示</label>
-      <p class="note">身長163cmです。Skyで表示し、矢印キーかWASDで歩きます。進む方向を向きます。マウスで選んで移動できます。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。壁と配置した器具は、少し余裕を残して越えません。</p>
       <button type="button" id="add-view">視点を追加</button>
       <button type="button" id="shot">画像を書き出す</button>
-      ${plan.settings.exported ? `<p class="note">書き出し済み。編集はそのまま続けられます。</p>` : ""}
+      ${plan.settings.exported ? `<p class="note">書き出し済み</p>` : ""}
       ${views || `<p class="note">まだ視点がありません。</p>`}
     </div>
   `;
@@ -569,7 +555,7 @@ function presentPanel() {
 
 function propsPanel() {
   const sel = selectionState();
-  if (!sel) return `<div class="props"><p class="note">選択するとサイズ、仕上げ、単価を変更できます。</p></div>`;
+  if (!sel) return `<div class="props"></div>`;
   if (sel.objs.length > 1) {
     const group = sel.kind === "item" ? `
       <button type="button" id="group-sel">グループ</button>
@@ -582,7 +568,7 @@ function propsPanel() {
   }
   if (sel.kind === "room") return roomProps(sel.objs[0]);
   if (sel.kind === "opening") return openingProps(sel.objs[0]);
-  if (sel.kind === "underlay") return `<div class="props"><h2>下絵</h2><p class="note">角をドラッグすると大きさが変わります。中をドラッグすると位置が動きます。</p><button type="button" id="delete-sel">削除</button></div>`;
+  if (sel.kind === "underlay") return `<div class="props"><h2>下絵</h2><button type="button" id="delete-sel">削除</button></div>`;
   return itemProps(sel.objs[0]);
 }
 
@@ -624,7 +610,6 @@ function openingProps(opening) {
     <label>建具<select id="leaf-type">${options}</select></label>
     ${color}
     ${hinge}
-    <p class="note">ドアを選ぶと床まで開きます。左開き・右開きは部屋の内側から見た吊元です。押し戸は外側へ開きます。開口は複製できません。</p>
     <button type="button" id="delete-sel">削除</button>
   </div>`;
 }
@@ -634,7 +619,7 @@ function roomProps(room) {
   const edge = pick?.edgeIndex != null ? room.edges?.[pick.edgeIndex] : null;
   return `<div class="props">
     <h2>${escapeHtml(room.name || "部屋")}</h2>
-    <p class="note">床面積 ${(roomArea(room) / 1e6).toFixed(2)} ㎡。頂点をドラッグすると斜めになります。辺を選んで頂点や円弧を足します。Excelの部屋はマスなので、斜めと円弧は段差になります。</p>
+    <p class="note">床面積 ${(roomArea(room) / 1e6).toFixed(2)} ㎡</p>
     <label>名称<input data-field="name" data-kind="text" type="text" value="${escapeHtml(room.name || "")}" /></label>
     <label>幅 mm<input data-field="w" type="number" value="${Math.round(room.w)}" /></label>
     <label>奥行 mm<input data-field="h" type="number" value="${Math.round(room.h)}" /></label>
@@ -729,7 +714,6 @@ function itemProps(entry) {
   const isLight = !!entry.light;
   const light = isLight ? `
     <label>取付高さ mm<input data-field="z" type="number" min="50" value="${Math.round(entry.z || 0)}" ${read} /></label>
-    <p class="note">床から器具中心までの高さです（500mm未満は天井付近として扱います）。点灯を入れると3Dで下向きに照らします。報告タブの3Dがいちばん分かりやすいです。</p>
     <label class="check"><input id="light-on" type="checkbox" ${entry.lightOn !== false ? "checked" : ""} /> 点灯</label>
     <label>明るさ 1-20<input id="light-level" type="range" min="1" max="20" value="${clamp(Number(entry.lightLevel) || 10, 1, 20)}" /></label>
     <label>光の色<input data-field="lightColor" data-kind="color" type="color" value="${entry.lightColor || "#fff4d6"}" /></label>
@@ -741,7 +725,7 @@ function itemProps(entry) {
   const rotField = wall && !isLight ? "" : `<label>角度<input data-field="rot" type="number" step="1" value="${entry.rot}" ${read} /></label>`;
   return `<div class="props">
     <h2>${escapeHtml(entry.name)}</h2>
-    <p class="note">${locked ? "Lock中です。解除すると移動、回転、削除、寸法の変更ができます。" : "幅・奥行・高さはここで変えます。平面図と3Dでは、周りの円をドラッグすると1度ずつ回ります。回転ボタンは15度です。"}</p>
+    ${locked ? `<p class="note">Lock中</p>` : ""}
     <label>幅 mm<input data-field="w" type="number" min="50" value="${Math.round(entry.w)}" ${read} /></label>
     <label>奥行 mm<input data-field="d" type="number" min="50" value="${Math.round(entry.d)}" ${read} /></label>
     <label>高さ mm<input data-field="h" type="number" min="50" value="${Math.round(entry.h)}" ${read} /></label>

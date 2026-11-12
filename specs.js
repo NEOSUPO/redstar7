@@ -1,4 +1,4 @@
-import { pointInRoom } from "./geometry.js?v=20261022d";
+﻿import { pointInRoom } from "./geometry.js?v=20261022d";
 
 const PREF_KEY = "neosupo-star-beta7-specs";
 const EXTRAS = [
@@ -57,7 +57,6 @@ export function mountSpecs({ store, ui, showItem, groupSelection, ungroupSelecti
         <button type="button" id="specs-group-btn">グループ</button>
         <button type="button" id="specs-ungroup">グループ解除</button>
       </div>
-      <p class="note">行で選択します。Shiftで範囲、Ctrlで追加です。ダブルクリックで図面のその位置へ寄ります。</p>
     </div>
   `;
   const tableHost = document.createElement("div");

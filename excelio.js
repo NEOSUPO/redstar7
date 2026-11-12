@@ -1,5 +1,5 @@
-﻿import { ENV_HEADERS } from "./env.js?v=20261111p";
-import { POWER_HEADERS } from "./power.js?v=20261028d";
+﻿import { ENV_HEADERS } from "./env.js?v=20261111q";
+import { POWER_HEADERS } from "./power.js?v=20261111q";
 import {
   DRAWING_HEADERS,
   EQUIPMENT_HEADERS,

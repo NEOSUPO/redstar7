@@ -349,7 +349,6 @@ export function envPanel(plan, ui) {
     <button type="button" data-flow="${entry.id}" class="${ui.tool === "env-flow" && ui.envFlow === entry.id ? "active" : ""}">${swatch(entry.color, entry.name, entry.dash ? `<span class="env-dash"></span>` : `<span class="env-solid"></span>`)}</button>
   `).join("");
   const pressure = room ? `
-    <p class="note">${escapeHtml(room.name)} の室圧です。一般環境を 0 とした目安で、あとから変えられます。</p>
     <label>室圧 Pa
       <input id="env-pa" type="number" step="1" value="${room.pressure == null ? "" : room.pressure}" />
     </label>
@@ -361,16 +360,14 @@ export function envPanel(plan, ui) {
       <button type="button" data-pa="-10">廃棄 -10</button>
     </div>
     <label class="check"><input id="env-wash" type="checkbox" ${room.handwash ? "checked" : ""} /> この部屋に手洗いがある</label>
-  ` : `<p class="note">部屋を選ぶと、室圧と手洗いを入れられます。</p>`;
+  ` : "";
   const airlock = opening ? `
-    <p class="note">選んだ開口の役割です。清浄度が離れる境目に付けます。</p>
     <div class="env-choices">
       ${ROLES.map((role) => `<button type="button" data-role="${role.id}" class="${opening.envRole === role.id ? "active" : ""}">${escapeHtml(role.name)}</button>`).join("")}
       <button type="button" data-role="" class="${opening.envRole ? "" : "active"}">指定しない</button>
     </div>
   ` : "";
   const picked = flow ? `
-    <p class="note">選んだ線は${escapeHtml(flowById(flow.kind).name)}です。線をドラッグで移動、端点をドラッグで向きと長さを変えられます。</p>
     <div class="env-flow-tools">
       <button type="button" id="env-flow-flip">向きを反転</button>
       <button type="button" id="env-flow-del">この線を削除</button>
@@ -386,7 +383,6 @@ export function envPanel(plan, ui) {
       <p class="env-now">${escapeHtml(envPrompt(ui))}</p>
       <section class="env-step">
         <h3>1. 清浄度を塗る</h3>
-        <p class="note">部屋を1つ塗ると選択に戻ります。続けて塗るときは、もう一度色を選んでください。</p>
         <div class="env-choices">${grades}</div>
         <button type="button" data-grade="" class="${ui.tool === "env-grade" && !ui.envGrade ? "active" : ""}">塗った色を消す</button>
       </section>
@@ -399,7 +395,6 @@ export function envPanel(plan, ui) {
       </section>
       <section class="env-step">
         <h3>3. 動線を引く</h3>
-        <p class="note">赤は人、青は物、緑の破線は廃棄物です。始点から終点までドラッグします。1本引くと選択に戻ります。あとから線や端点をドラッグして移動・向きを変えられます。</p>
         <div class="env-choices">${flows}</div>
       </section>
       <section class="env-step">
@@ -407,7 +402,6 @@ export function envPanel(plan, ui) {
         ${checks}
       </section>
       <label class="check"><input id="show-env-legend" type="checkbox" ${ui.showEnvLegend !== false ? "checked" : ""} />凡例を表示</label>
-      <p class="note">図面上の凡例は、パネルをドラッグして動かせます。</p>
     </div>
   `;
 }

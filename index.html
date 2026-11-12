@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NEOSUPO★STAR β7</title>
-  <link rel="stylesheet" href="css/app.css?v=20261111p" />
+  <link rel="stylesheet" href="css/app.css?v=20261111q" />
   <script type="importmap">
   {
     "imports": {
@@ -61,7 +61,6 @@
               <button type="button" id="sky" class="active">Sky</button>
               <button type="button" id="walk">Walk</button>
               <button type="button" id="doors" aria-pressed="true">ドアを閉じる</button>
-              <p id="view-help" class="note">ドラッグで見下ろします。右ドラッグで図面を移動し、ホイールと拡大・縮小で寄り引きします。</p>
             </div>
             <div class="tool-group">
               <button type="button" id="fit">全体表示</button>
@@ -86,7 +85,6 @@
   <dialog id="dialog-new">
     <form method="dialog" id="form-new">
       <h2>新規プラン</h2>
-      <p>天井高、階高、壁厚を決めてから間取りを作ります。</p>
       <label>天井高 mm<input name="ceiling" type="number" value="2700" min="2000" max="8000" /></label>
       <label>階高 mm<input name="floorHeight" type="number" value="4000" min="2000" max="12000" /></label>
       <label>壁厚 mm<input name="wall" type="number" value="150" min="50" max="400" /></label>
@@ -109,7 +107,6 @@
           <button type="button" id="plan-view-thumb" class="active" aria-pressed="true">サムネイル</button>
         </div>
       </div>
-      <p class="note">1ページに出す件数です。サムネイルは部屋と器具の配置です。</p>
       <div id="plan-rows"></div>
       <nav id="plan-pager" class="plan-pager" aria-label="ページ"></nav>
       <button id="plan-list-close" value="close" type="submit">閉じる</button>
@@ -131,7 +128,6 @@
   <dialog id="dialog-detail-columns">
     <form method="dialog">
       <h2>表示項目</h2>
-      <p class="note">プラン詳細に出す列です。選んだ内容はこのブラウザに保存します。</p>
       <div id="detail-column-list" class="detail-columns"></div>
       <button value="close" type="submit">閉じる</button>
     </form>
@@ -140,26 +136,6 @@
   <dialog id="dialog-help">
     <form method="dialog">
       <h2>操作</h2>
-      <ol>
-        <li>新規プランで天井高・階高・壁厚を決めます。</li>
-        <li>間取設定で部屋タイプを選び、図面をドラッグして部屋を置きます。クリックだけだと 6000×4000mm になります。置いた部屋をクリックすると選択・移動になり、空いた場所では同じ部屋がもう一部屋できます。選択した部屋の頂点をドラッグすると斜めになり、辺を選ぶと頂点の追加と円弧ができます。</li>
-        <li>グリッドは尺・メーター・インチ・任意間隔です。スナップを切ると寸法を細かく動かせます。</li>
-        <li>アイテム配置で実験台やヒュームフードを置き、ユーティリティからコンセント・配管・盤を置きます。実験台・流し台・天秤台の上に床の器具を置くと天板に載ります。台を動かすと一緒に動き、台の外へ出すと床に戻ります。記入例の読み込みはこのブラウザだけに追加し、記入例の行は読み込みません。</li>
-        <li>コンセントは最寄りの壁に付きます。リーラーコンセントは天井、配管と盤は自由配置でサイズを変えられます。</li>
-        <li>DRAW と 3D を切り替えます。3D の Sky はドラッグで見下ろし、右ドラッグで移動、ホイールと拡大・縮小で寄り引きします。Walk は目の高さで、ドラッグで見回します。Q で左、E で右を向きます。Ctrl を押しながらテンキーの 4・6（または左右の矢印）でも向きが変わり、Ctrl を離すと左右に歩きます。矢印キー、テンキーの 8 2 4 6、または W A S D で歩き、Shift で速く歩きます。ホイールと拡大・縮小でも寄り引きします。器具をクリックすると選べます。何もないところをクリックすると選択が外れます。選んだ器具をドラッグすると図面の横方向に動き、平面図の周りの円、または3Dの足元の円をドラッグすると1度ずつ回ります。回転ボタンは15度ずつです。幅・奥行・高さは左の欄です。</li>
-        <li>Lockすると、その器具の移動、回転、削除、寸法の変更が止まります。選択と解除はできます。</li>
-        <li>空いた場所をドラッグすると図面全体が動きます。右ドラッグでも移動できます。Shift を押しながら空いた場所をドラッグすると複数選択です。</li>
-        <li>左の部屋パネルは「パネルを閉じる」で隠せます。図面下の操作は「閉じる」で隠せます。右の諸元一覧は「諸元一覧を閉じる」で隠せます。戻すときは「パネル」「操作」「諸元一覧」です。初めて開いたときはパネルが開き、諸元一覧は閉じています。配電と報告では、その画面に入ったときパネルと諸元一覧を閉じます。間取と配置に戻ると、閉じる前の開き方に戻ります。諸元一覧の行と図面の物品は同じ選択です。</li>
-        <li>Delete で削除、Ctrl+Z / Ctrl+Y で元に戻す・やり直す、Ctrl+C または Ctrl+D で複製、Ctrl+G でグループです。</li>
-        <li>アイテム配置の左開き・右開き・両開き・押し戸・引き戸は、壁をクリックすると床までのドアになります。左開きと右開きは部屋の内側から見た吊元です。押し戸は外側へ開きます。置いたあとは選択・移動になり、続けて置くときはもう一度部品を選びます。</li>
-        <li>間取設定の壁抜き・開口部・腰壁でも壁に穴を開けられます。開口を選んで建具を付けると、ドアは床まで開きます。</li>
-        <li>単価を入れるとプラン詳細の見積に出ます。空欄は未設定のままです。</li>
-        <li>報告の3Dは高画質です。間取、配置、配電の3Dは従来の表示です。報告では視点、プラン全体の明るさ、身長163cmのキャラクター、画像の書き出しを使います。キャラクターはSkyで表示し、矢印キーかWASDで歩きます。進む方向を向きます。マウスで選んで移動できます。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。壁と配置した器具は、少し余裕を残して越えません。照明はスイッチと 20 段階です（初期は中央の 10）。</li>
-        <li>配電管理では、分電盤・ブレーカー・コンセント・手元開閉器を図面に置きます。記号はこのタブのときだけ表示されます。回路を選ぶとその接続だけ線で示します。専用・一般・予備は左の確認に出ます。</li>
-        <li>環境では、部屋をクリックして清浄度を塗り、選んだ部屋に室圧を入れ、ドラッグで入室・退室・搬入・搬出・廃棄物の矢印を引きます。色と矢印はこのタブと、報告で「環境の色と矢印を表示」を入れたときに出ます。確認は図面の矛盾だけを出します。風量や換気回数は計算しません。</li>
-        <li>Excel書出とExcel読込がデータベースです。部屋は1セル10cmのマス、機材とドアの弧は図形です。配電は配電シート、環境は環境シートが正データです。斜めと円弧の壁はマスでは段差になります。位置の正データは配置データです。</li>
-      </ol>
-      <p class="note">画面はこのブラウザで動きます。設備の電気・給排水・給排気・特ガスは機器の欄として保存します。電圧・回路・容量の計算と、メーカー製品の 3D モデルは入っていません。</p>
       <button value="close" type="submit">閉じる</button>
     </form>
   </dialog>
@@ -167,6 +143,6 @@
   <div id="print-sheet"></div>
   <script src="vendor/jszip.min.js?v=20261022w"></script>
   <script src="vendor/exceljs.min.js?v=20261022w"></script>
-  <script type="module" src="main.js?v=20261111p"></script>
+  <script type="module" src="main.js?v=20261111q"></script>
 </body>
 </html>

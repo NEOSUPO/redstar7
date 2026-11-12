@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111q";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111s";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111q";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111q";
+import { bindEnv, envPanel } from "./env.js?v=20261111s";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111s";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
-import { bindPower, powerPanel } from "./power.js?v=20261111q";
-import { createStore, uid } from "./store.js?v=20261111q";
+import { bindPower, powerPanel } from "./power.js?v=20261111s";
+import { createStore, uid } from "./store.js?v=20261111s";
 import { seatItems } from "./surface.js?v=20261028d";
-import { mountSpecs } from "./specs.js?v=20261111q";
-import { createView2d } from "./view2d.js?v=20261111q";
+import { mountSpecs } from "./specs.js?v=20261111s";
+import { createView2d } from "./view2d.js?v=20261111s";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111q");
+    const mod = await import("./view3d.js?v=20261111s");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -392,14 +392,14 @@ function bindSidebar() {
       ? `${result.added}件をこのブラウザに追加しました。記入例の行は読み込んでいません。`
       : "追加できる行がありません。記入例の行と、共通カタログと同じidは読み込みません。";
   });
-  sidebar.querySelector("#brightness")?.addEventListener("change", (event) => {
-    store.update((plan) => {
-      plan.settings.brightness = Number(event.target.value);
-    });
-  });
   sidebar.querySelector("#walker-toggle")?.addEventListener("click", () => ui.setShowWalker(!ui.showWalker));
   sidebar.querySelector("#lights-toggle")?.addEventListener("click", () => ui.setShowLights(!ui.showLights));
-  sidebar.querySelector("#world-light-toggle")?.addEventListener("click", () => ui.setWorldLight(!ui.worldLight));
+  sidebar.querySelector("#world-light-level")?.addEventListener("input", (event) => {
+    ui.setWorldLightLevel(Number(event.target.value));
+  });
+  sidebar.querySelector("#world-light-level")?.addEventListener("change", (event) => {
+    ui.setWorldLightLevel(Number(event.target.value));
+  });
   sidebar.querySelector("#shot")?.addEventListener("click", exportImage);
   sidebar.querySelector("#add-view")?.addEventListener("click", saveView);
   sidebar.querySelectorAll("[data-view]").forEach((button) => {
@@ -528,22 +528,14 @@ function presentPanel() {
       <button type="button" data-view-del="${view.id}">削除</button>
     </div>
   `).join("");
-  const level = Number(plan.settings.brightness);
   return `
     <div class="side-block">
       <h2>視点リスト</h2>
-      <label>明るさ
-        <select id="brightness">
-          <option value="0" ${level === 0 ? "selected" : ""}>暗い</option>
-          <option value="1" ${level === 1 ? "selected" : ""}>標準</option>
-          <option value="2" ${level === 2 ? "selected" : ""}>明るい</option>
-        </select>
-      </label>
       <div class="tool-row">
         <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
         <button type="button" id="lights-toggle" class="${ui.showLights !== false ? "active" : ""}" aria-pressed="${ui.showLights !== false ? "true" : "false"}">${ui.showLights !== false ? "照明を隠す" : "照明を表示"}</button>
-        <button type="button" id="world-light-toggle" class="${ui.worldLight !== false ? "active" : ""}" aria-pressed="${ui.worldLight !== false ? "true" : "false"}">${ui.worldLight !== false ? "全体照明ON" : "全体照明をOFF"}</button>
       </div>
+      <label>全体照明 0-10<input id="world-light-level" type="range" min="0" max="10" step="1" value="${ui.worldLightLevel}" /></label>
       <label class="check"><input id="show-env" type="checkbox" ${ui.showEnv ? "checked" : ""} /> 環境の色と矢印を表示</label>
       <button type="button" id="add-view">視点を追加</button>
       <button type="button" id="shot">画像を書き出す</button>
@@ -1495,9 +1487,20 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function loadWorldLightLevel() {
+  const next = localStorage.getItem("neosupo-star-beta7-world-light-level");
+  if (next != null && next !== "") {
+    const n = Number(next);
+    if (Number.isFinite(n)) return clamp(Math.round(n), 0, 10);
+  }
+  const legacy = localStorage.getItem("neosupo-star-beta7-world-light");
+  if (legacy === "0") return 0;
+  return 7;
+}
+
 function createController() {
   const listeners = new Set();
-  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showLights: localStorage.getItem("neosupo-star-beta7-lights") !== "0", worldLight: localStorage.getItem("neosupo-star-beta7-world-light") !== "0", showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
+  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showLights: localStorage.getItem("neosupo-star-beta7-lights") !== "0", worldLightLevel: loadWorldLightLevel(), showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
   function emit() {
     listeners.forEach((fn) => fn());
   }
@@ -1506,7 +1509,7 @@ function createController() {
     get showPlaced() { return state.showPlaced; },
     get showWalker() { return state.showWalker; },
     get showLights() { return state.showLights; },
-    get worldLight() { return state.worldLight; },
+    get worldLightLevel() { return state.worldLightLevel; },
     get showEnv() { return state.showEnv; },
     get showEnvLegend() { return state.showEnvLegend; },
     get envLegendPos() { return state.envLegendPos; },
@@ -1555,9 +1558,9 @@ function createController() {
       localStorage.setItem("neosupo-star-beta7-lights", state.showLights ? "1" : "0");
       emit();
     },
-    setWorldLight(shown) {
-      state.worldLight = !!shown;
-      localStorage.setItem("neosupo-star-beta7-world-light", state.worldLight ? "1" : "0");
+    setWorldLightLevel(level) {
+      state.worldLightLevel = clamp(Math.round(Number(level) || 0), 0, 10);
+      localStorage.setItem("neosupo-star-beta7-world-light-level", String(state.worldLightLevel));
       emit();
     },
     setShowEnv(shown) {

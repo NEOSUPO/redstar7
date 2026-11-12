@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111q";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111s";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111q";
+import { snapValue } from "./store.js?v=20261111s";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -19,6 +19,9 @@ const PERSON_MM = 1630;
 const WALK_MPS = 1300;
 const BODY_REACH = 620;
 const STEP_MM = 680;
+// WebGL forward shaders + SSAO/shadow maps blow past texture-unit limits with many lights.
+const MAX_FIXTURE_SPOTS = 8;
+const MAX_FIXTURE_SHADOWS = 1;
 
 export function createView3d(canvas, store, ui) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -266,16 +269,22 @@ export function createView3d(canvas, store, ui) {
 
   function applyLook(plan) {
     hq = ui.tab === "present";
-    const step = [0, 1, 2].includes(Number(plan.settings?.brightness)) ? Number(plan.settings.brightness) : 1;
-    const level = BRIGHTNESS[step];
-    // The composer draws into a render target, so material tone mapping never runs.
-    // OutputPass applies this exposure. The middle step stays at 1, so 標準 keeps the current picture.
+    const worldLevel = clamp(Math.round(Number(ui.worldLightLevel) || 0), 0, 10);
+    const t = worldLevel / 10;
+    const worldOn = t > 0;
+    // 10 = former「明るい」. Fixture strength still needs a stable scale when world light is off.
+    const level = worldOn ? BRIGHTNESS[2] * t : BRIGHTNESS[1];
     renderer.toneMapping = hq ? THREE.LinearToneMapping : THREE.NoToneMapping;
-    renderer.toneMappingExposure = hq ? EXPOSURE[step] / EXPOSURE[1] : 1;
+    renderer.toneMappingExposure = hq ? (worldOn ? (EXPOSURE[2] / EXPOSURE[1]) * t : 1) : 1;
     renderer.shadowMap.enabled = hq;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    const worldOn = !(hq && ui.worldLight === false);
-    renderer.setClearColor(hq ? (worldOn ? 0xd4e3ee : 0x05070a) : 0xe4eeea);
+    if (hq) {
+      const dark = 0x05070a;
+      const litSky = 0xd4e3ee;
+      renderer.setClearColor(worldOn ? lerpColor(dark, litSky, t) : dark);
+    } else {
+      renderer.setClearColor(0xe4eeea);
+    }
     sun.castShadow = hq && worldOn;
     const lit = (plan.items || []).some((entry) => (entry.light || entry.catalogId === "light") && entry.lightOn !== false);
     if (!worldOn) {
@@ -284,11 +293,11 @@ export function createView3d(canvas, store, ui) {
       hemi.intensity = 0;
       scene.environment = null;
     } else if (hq) {
-      sun.intensity = lit ? 0.55 : 1.35;
+      sun.intensity = (lit ? 0.55 : 1.35) * t;
       sun.color.set(0xfff1dd);
-      ambient.intensity = lit ? 0.03 : 0.05;
-      hemi.intensity = lit ? 0.12 : 0.24;
-      scene.environment = ensureEnv();
+      ambient.intensity = (lit ? 0.03 : 0.05) * t;
+      hemi.intensity = (lit ? 0.12 : 0.24) * t;
+      scene.environment = t >= 0.15 ? ensureEnv() : null;
       fitShadow(plan);
     } else {
       sun.intensity = (lit ? 0.7 : 1.1) * level;
@@ -300,6 +309,19 @@ export function createView3d(canvas, store, ui) {
       scene.environment = null;
     }
     return hq ? 1 : level;
+  }
+
+  function lerpColor(a, b, t) {
+    const ar = (a >> 16) & 255;
+    const ag = (a >> 8) & 255;
+    const ab = a & 255;
+    const br = (b >> 16) & 255;
+    const bg = (b >> 8) & 255;
+    const bb = b & 255;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return (r << 16) | (g << 8) | bl;
   }
 
   function ensureComposer() {
@@ -356,10 +378,12 @@ export function createView3d(canvas, store, ui) {
     }
     for (const room of plan.rooms) addRoom(room, plan, ceiling);
     addEnvArrows(plan);
+    const fixtureLights = [];
     for (const entry of plan.items) {
       if (ui.tab === "layout" && ui.showPlaced === false && !entry.openingId) continue;
-      addItem(entry, plan, ceiling, level);
+      addItem(entry, plan, ceiling, level, fixtureLights);
     }
+    attachFixtureLights(fixtureLights, level);
     const sole = selection?.kind === "item" && selection.ids.length === 1
       ? plan.items.find((row) => row.id === selection.ids[0])
       : null;
@@ -445,7 +469,7 @@ export function createView3d(canvas, store, ui) {
     return geom;
   }
 
-  function addItem(entry, plan, ceiling, level) {
+  function addItem(entry, plan, ceiling, level, fixtureLights) {
     if (entry.openingId) {
       addLeaf(entry, plan);
       return;
@@ -485,21 +509,35 @@ export function createView3d(canvas, store, ui) {
     const hideLightMesh = isLight && ui.tab === "present" && ui.showLights === false;
     if (!hideLightMesh) root.add(mesh);
     if (isLight && entry.lightOn !== false) {
-      // Physically-correct lights in r160 assume metre-ish units; this plan is in mm.
-      // Scale 1–20: 10 matches the old maximum, 20 is twice as bright.
+      fixtureLights.push({ entry, y, lift });
+    }
+  }
+
+  function attachFixtureLights(fixtureLights, level) {
+    if (!fixtureLights.length) return;
+    const cx = camera.position.x;
+    const cz = camera.position.z;
+    const ranked = fixtureLights.slice().sort((a, b) => {
+      const da = (a.entry.x - cx) ** 2 + (a.entry.y - cz) ** 2;
+      const db = (b.entry.x - cx) ** 2 + (b.entry.y - cz) ** 2;
+      return da - db;
+    });
+    const active = ranked.slice(0, MAX_FIXTURE_SPOTS);
+    // When many fixtures share the budget, keep total room energy roughly stable.
+    const share = Math.max(1, ranked.length / active.length);
+    active.forEach((item, index) => {
+      const entry = item.entry;
       const dim = Math.min(20, Math.max(1, Number(entry.lightLevel) || 10)) / 10;
-      const strength = dim * level * (hq ? 2.4e6 : 1.4e6);
-      const height = Math.max(400, y - lift);
+      const strength = dim * level * (hq ? 2.4e6 : 1.4e6) * Math.min(2.5, Math.sqrt(share));
+      const height = Math.max(400, item.y - item.lift);
       const fall = Math.max(2400, height + 1200);
       const span = Math.max(entry.w, entry.d, 400);
       const angle = Math.min(1.2, Math.max(0.45, Math.atan2(span * 1.1, height)));
       const color = entry.lightColor || "#fff4d6";
       const spot = new THREE.SpotLight(color, strength, fall * 1.5, angle, 0.5, 2);
-      spot.position.set(entry.x, y - Math.min(30, entry.h * 0.4), entry.y);
-      spot.target.position.set(entry.x, lift + 1, entry.y);
-      const fill = new THREE.PointLight(color, strength * 0.22, fall * 1.2, 2);
-      fill.position.set(entry.x, y, entry.y);
-      if (hq) {
+      spot.position.set(entry.x, item.y - Math.min(30, entry.h * 0.4), entry.y);
+      spot.target.position.set(entry.x, item.lift + 1, entry.y);
+      if (hq && index < MAX_FIXTURE_SHADOWS) {
         spot.castShadow = true;
         spot.shadow.mapSize.set(1024, 1024);
         spot.shadow.bias = -0.00015;
@@ -509,8 +547,7 @@ export function createView3d(canvas, store, ui) {
       }
       root.add(spot);
       root.add(spot.target);
-      root.add(fill);
-    }
+    });
   }
 
   function addLeaf(entry, plan) {

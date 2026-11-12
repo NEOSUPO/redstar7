@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111o";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111p";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111o";
+import { snapValue } from "./store.js?v=20261111p";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -274,10 +274,16 @@ export function createView3d(canvas, store, ui) {
     renderer.toneMappingExposure = hq ? EXPOSURE[step] / EXPOSURE[1] : 1;
     renderer.shadowMap.enabled = hq;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.setClearColor(hq ? 0xd4e3ee : 0xe4eeea);
-    sun.castShadow = hq;
+    const worldOn = !(hq && ui.worldLight === false);
+    renderer.setClearColor(hq ? (worldOn ? 0xd4e3ee : 0x05070a) : 0xe4eeea);
+    sun.castShadow = hq && worldOn;
     const lit = (plan.items || []).some((entry) => (entry.light || entry.catalogId === "light") && entry.lightOn !== false);
-    if (hq) {
+    if (!worldOn) {
+      sun.intensity = 0;
+      ambient.intensity = 0;
+      hemi.intensity = 0;
+      scene.environment = null;
+    } else if (hq) {
       sun.intensity = lit ? 0.55 : 1.35;
       sun.color.set(0xfff1dd);
       ambient.intensity = lit ? 0.03 : 0.05;

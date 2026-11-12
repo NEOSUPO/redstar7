@@ -1,4 +1,4 @@
-﻿import { normalizeEnv } from "./env.js?v=20261111o";
+﻿import { normalizeEnv } from "./env.js?v=20261111p";
 import { ensureRoom, nearestEdge } from "./geometry.js";
 import { migrateOpenings } from "./openings.js?v=20261022f";
 import { normalizePower } from "./power.js?v=20261028d";

@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111m";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111n";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111m";
+import { snapValue } from "./store.js?v=20261111n";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -357,7 +357,8 @@ export function createView3d(canvas, store, ui) {
     const sole = selection?.kind === "item" && selection.ids.length === 1
       ? plan.items.find((row) => row.id === selection.ids[0])
       : null;
-    if (sole && !sole.locked && !sole.openingId && sole.place !== "wall" && (ui.tab !== "layout" || ui.showPlaced !== false)) addSpin(sole, plan, ceiling);
+    const soleLight = sole && !!(sole.light || sole.catalogId === "light");
+    if (sole && !sole.locked && !sole.openingId && sole.place !== "wall" && (ui.tab !== "layout" || ui.showPlaced !== false) && !(ui.tab === "present" && ui.showLights === false && soleLight)) addSpin(sole, plan, ceiling);
   }
 
   function addArrow(x1, y1, x2, y2, color, dashed) {
@@ -475,7 +476,8 @@ export function createView3d(canvas, store, ui) {
       mesh.material.emissiveIntensity = hq ? 1.4 : 0.9;
     }
     tag(mesh, { pick: "item", id: entry.id }, chosen("item", entry.id));
-    root.add(mesh);
+    const hideLightMesh = isLight && ui.tab === "present" && ui.showLights === false;
+    if (!hideLightMesh) root.add(mesh);
     if (isLight && entry.lightOn !== false) {
       // Physically-correct lights in r160 assume metre-ish units; this plan is in mm.
       const dim = (Number(entry.lightLevel) || 10) / 10;

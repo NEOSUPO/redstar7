@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111m";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111n";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111m";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111m";
+import { bindEnv, envPanel } from "./env.js?v=20261111n";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111n";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
 import { bindPower, powerPanel } from "./power.js?v=20261028d";
-import { createStore, uid } from "./store.js?v=20261111m";
+import { createStore, uid } from "./store.js?v=20261111n";
 import { seatItems } from "./surface.js?v=20261028d";
-import { mountSpecs } from "./specs.js?v=20261111m";
-import { createView2d } from "./view2d.js?v=20261111m";
+import { mountSpecs } from "./specs.js?v=20261111n";
+import { createView2d } from "./view2d.js?v=20261111n";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111m");
+    const mod = await import("./view3d.js?v=20261111n");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -405,6 +405,7 @@ function bindSidebar() {
     });
   });
   sidebar.querySelector("#walker-toggle")?.addEventListener("click", () => ui.setShowWalker(!ui.showWalker));
+  sidebar.querySelector("#lights-toggle")?.addEventListener("click", () => ui.setShowLights(!ui.showLights));
   sidebar.querySelector("#shot")?.addEventListener("click", exportImage);
   sidebar.querySelector("#add-view")?.addEventListener("click", saveView);
   sidebar.querySelectorAll("[data-view]").forEach((button) => {
@@ -549,7 +550,11 @@ function presentPanel() {
         </select>
       </label>
       <p class="note">このタブの3Dは高画質です。間取、配置、配電の3Dは従来の表示です。</p>
-      <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
+      <div class="tool-row">
+        <button type="button" id="walker-toggle" class="${ui.showWalker !== false ? "active" : ""}" aria-pressed="${ui.showWalker !== false ? "true" : "false"}">${ui.showWalker !== false ? "キャラクターを隠す" : "キャラクターを表示"}</button>
+        <button type="button" id="lights-toggle" class="${ui.showLights !== false ? "active" : ""}" aria-pressed="${ui.showLights !== false ? "true" : "false"}">${ui.showLights !== false ? "照明を隠す" : "照明を表示"}</button>
+      </div>
+      <p class="note">照明を隠しても、点灯中の光源はそのまま床を照らします。</p>
       <label class="check"><input id="show-env" type="checkbox" ${ui.showEnv ? "checked" : ""} /> 環境の色と矢印を表示</label>
       <p class="note">身長163cmです。Skyで表示し、矢印キーかWASDで歩きます。進む方向を向きます。マウスで選んで移動できます。Ctrlを押しながら左右で向きを変えます。Hで表示と非表示です。Walkでは出ません。壁と配置した器具は、少し余裕を残して越えません。</p>
       <button type="button" id="add-view">視点を追加</button>
@@ -1506,7 +1511,7 @@ function clamp(value, min, max) {
 
 function createController() {
   const listeners = new Set();
-  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
+  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showLights: localStorage.getItem("neosupo-star-beta7-lights") !== "0", showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
   function emit() {
     listeners.forEach((fn) => fn());
   }
@@ -1514,6 +1519,7 @@ function createController() {
     get tool() { return state.tool; },
     get showPlaced() { return state.showPlaced; },
     get showWalker() { return state.showWalker; },
+    get showLights() { return state.showLights; },
     get showEnv() { return state.showEnv; },
     get showEnvLegend() { return state.showEnvLegend; },
     get envLegendPos() { return state.envLegendPos; },
@@ -1555,6 +1561,11 @@ function createController() {
     setShowWalker(shown) {
       state.showWalker = !!shown;
       localStorage.setItem("neosupo-star-beta7-walker", state.showWalker ? "1" : "0");
+      emit();
+    },
+    setShowLights(shown) {
+      state.showLights = !!shown;
+      localStorage.setItem("neosupo-star-beta7-lights", state.showLights ? "1" : "0");
       emit();
     },
     setShowEnv(shown) {

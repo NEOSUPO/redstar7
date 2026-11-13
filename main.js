@@ -1,14 +1,14 @@
-﻿import { bookToPlan, planToBook } from "./book.js?v=20261111s";
+﻿import { bookToPlan, planToBook } from "./book.js?v=20261111t";
 import { insertPoint, outlinePoints, removePoint, roomArea, scaleRoom, setEdgeArc } from "./geometry.js?v=20261022d";
 import { ROOM_TYPES, catalogTemplateCsv, categoryTree, importUserCatalog, loadSharedCatalog, lookupItem } from "./catalog.js?v=20261028d";
-import { bindEnv, envPanel } from "./env.js?v=20261111s";
-import { readTables, writeWorkbook } from "./excelio.js?v=20261111s";
+import { bindEnv, envPanel } from "./env.js?v=20261111t";
+import { readTables, writeWorkbook } from "./excelio.js?v=20261111t";
 import { attachLeaf, clampOpenings, hingeForHand, noteRemovedVertex, resizeOpening, splitEdgeOpenings } from "./openings.js?v=20261022f";
-import { bindPower, powerPanel } from "./power.js?v=20261111s";
-import { createStore, uid } from "./store.js?v=20261111s";
+import { bindPower, powerPanel } from "./power.js?v=20261111t";
+import { createStore, uid } from "./store.js?v=20261111t";
 import { seatItems } from "./surface.js?v=20261028d";
-import { mountSpecs } from "./specs.js?v=20261111s";
-import { createView2d } from "./view2d.js?v=20261111s";
+import { mountSpecs } from "./specs.js?v=20261111t";
+import { createView2d } from "./view2d.js?v=20261111t";
 
 const store = createStore();
 const ui = createController();
@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111s");
+    const mod = await import("./view3d.js?v=20261111t");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }
@@ -394,6 +394,7 @@ function bindSidebar() {
   });
   sidebar.querySelector("#walker-toggle")?.addEventListener("click", () => ui.setShowWalker(!ui.showWalker));
   sidebar.querySelector("#lights-toggle")?.addEventListener("click", () => ui.setShowLights(!ui.showLights));
+  sidebar.querySelector("#show-plan-lights")?.addEventListener("change", (event) => ui.setShowPlanLights(event.target.checked));
   sidebar.querySelector("#world-light-level")?.addEventListener("input", (event) => {
     ui.setWorldLightLevel(Number(event.target.value));
   });
@@ -470,6 +471,7 @@ function layoutPanel() {
       ` : ""}
     </div>
     ${propsPanel()}
+    ${planLightsToggle()}
   `;
 }
 
@@ -506,6 +508,15 @@ function itemPanel() {
       <p id="catalog-note" class="note"><span id="catalog-result"></span><a href="#" id="catalog-template">記入例をダウンロード</a></p>
     </div>
     ${propsPanel()}
+    ${planLightsToggle()}
+  `;
+}
+
+function planLightsToggle() {
+  return `
+    <div class="side-block">
+      <label class="check"><input id="show-plan-lights" type="checkbox" ${ui.showPlanLights ? "checked" : ""} /> 照明を表示</label>
+    </div>
   `;
 }
 
@@ -1498,9 +1509,15 @@ function loadWorldLightLevel() {
   return 7;
 }
 
+function loadPlanLights(tab) {
+  const raw = localStorage.getItem(`neosupo-star-beta7-plan-lights-${tab}`);
+  if (raw === null || raw === "") return tab === "items";
+  return raw !== "0";
+}
+
 function createController() {
   const listeners = new Set();
-  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showLights: localStorage.getItem("neosupo-star-beta7-lights") !== "0", worldLightLevel: loadWorldLightLevel(), showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
+  const state = { tab: "layout", tool: "select", showPlaced: localStorage.getItem("neosupo-star-beta7-layout-items") !== "0", showWalker: localStorage.getItem("neosupo-star-beta7-walker") !== "0", showLights: localStorage.getItem("neosupo-star-beta7-lights") !== "0", showPlanLights: loadPlanLights("layout"), worldLightLevel: loadWorldLightLevel(), showEnv: false, showEnvLegend: localStorage.getItem("neosupo-star-beta7-env-legend") !== "0", envLegendPos: (() => { try { return JSON.parse(localStorage.getItem("neosupo-star-beta7-env-legend-pos") || "null"); } catch { return null; } })(), envGrade: "B", envFlow: "enter", catalogId: null, roomType: "実験室", roomColor: "#d5e4f2", selection: null, wallPick: null, powerSymbol: null, powerPrompt: null };
   function emit() {
     listeners.forEach((fn) => fn());
   }
@@ -1509,6 +1526,7 @@ function createController() {
     get showPlaced() { return state.showPlaced; },
     get showWalker() { return state.showWalker; },
     get showLights() { return state.showLights; },
+    get showPlanLights() { return state.showPlanLights; },
     get worldLightLevel() { return state.worldLightLevel; },
     get showEnv() { return state.showEnv; },
     get showEnvLegend() { return state.showEnvLegend; },
@@ -1530,6 +1548,7 @@ function createController() {
     setTab(tab) {
       state.tab = tab;
       state.powerPrompt = null;
+      if (["layout", "items", "power", "env"].includes(tab)) state.showPlanLights = loadPlanLights(tab);
       emit();
     },
     setPowerSymbol(id) {
@@ -1556,6 +1575,13 @@ function createController() {
     setShowLights(shown) {
       state.showLights = !!shown;
       localStorage.setItem("neosupo-star-beta7-lights", state.showLights ? "1" : "0");
+      emit();
+    },
+    setShowPlanLights(shown) {
+      state.showPlanLights = !!shown;
+      if (["layout", "items", "power", "env"].includes(state.tab)) {
+        localStorage.setItem(`neosupo-star-beta7-plan-lights-${state.tab}`, state.showPlanLights ? "1" : "0");
+      }
       emit();
     },
     setWorldLightLevel(level) {

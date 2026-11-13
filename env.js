@@ -402,6 +402,7 @@ export function envPanel(plan, ui) {
         ${checks}
       </section>
       <label class="check"><input id="show-env-legend" type="checkbox" ${ui.showEnvLegend !== false ? "checked" : ""} />凡例を表示</label>
+      <label class="check"><input id="show-plan-lights" type="checkbox" ${ui.showPlanLights ? "checked" : ""} /> 照明を表示</label>
     </div>
   `;
 }

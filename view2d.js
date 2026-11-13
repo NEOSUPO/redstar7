@@ -1,5 +1,5 @@
 ﻿import { lookupItem } from "./catalog.js?v=20261028d";
-import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111s";
+import { addFlow, drawEnv, envVisible, gradeFill, hitFlow, hitLegend, paintRoom } from "./env.js?v=20261111t";
 import {
   centroid,
   edgeGeometry,
@@ -26,8 +26,8 @@ import {
   openingCenter,
   syncLeaves,
 } from "./openings.js?v=20261022f";
-import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261111s";
-import { snapValue, uid } from "./store.js?v=20261111s";
+import { addBreaker, addOutlet, addPanel, drawPower, hitPower, placeAnchor, symbolById } from "./power.js?v=20261111t";
+import { snapValue, uid } from "./store.js?v=20261111t";
 import { seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const images = new Map();
@@ -521,6 +521,7 @@ export function createView2d(canvas, store, ui) {
   }
 
   function drawItem(entry, plan) {
+    if (isLightItem(entry) && !showPlanLights()) return;
     const cat = lookupItem(entry.catalogId, plan.customItems);
     const center = screen(entry.x, entry.y);
     ctx.save();
@@ -557,6 +558,7 @@ export function createView2d(canvas, store, ui) {
     if (ui.selection?.kind !== "item" || ui.selection.ids.length !== 1) return null;
     const entry = store.get().items.find((row) => row.id === ui.selection.ids[0]);
     if (!entry || entry.locked || entry.openingId || entry.place === "wall") return null;
+    if (isLightItem(entry) && !showPlanLights()) return null;
     return entry;
   }
 
@@ -683,6 +685,7 @@ export function createView2d(canvas, store, ui) {
     for (let i = items.length - 1; i >= 0; i -= 1) {
       const entry = items[i];
       if (entry.openingId) continue;
+      if (isLightItem(entry) && !showPlanLights()) continue;
       if (pointInRotatedRect(wx, wy, entry)) return entry;
     }
     return null;
@@ -1282,7 +1285,7 @@ export function createView2d(canvas, store, ui) {
     const y0 = Math.min(state.start.y, state.current.y);
     const x1 = Math.max(state.start.x, state.current.x);
     const y1 = Math.max(state.start.y, state.current.y);
-    const hits = store.get().items.filter((entry) => (showPlacedItems() || entry.openingId) && entry.x >= x0 && entry.x <= x1 && entry.y >= y0 && entry.y <= y1);
+    const hits = store.get().items.filter((entry) => (showPlacedItems() || entry.openingId) && !(isLightItem(entry) && !showPlanLights()) && entry.x >= x0 && entry.x <= x1 && entry.y >= y0 && entry.y <= y1);
     const ids = [...new Set([...state.base, ...hits.flatMap((entry) => memberIds(entry))])];
     ui.select(ids.length ? { kind: "item", ids } : null);
     draw();
@@ -1506,6 +1509,15 @@ export function createView2d(canvas, store, ui) {
 
   function showPlacedItems() {
     return ui.tab !== "layout" || ui.showPlaced !== false;
+  }
+
+  function isLightItem(entry) {
+    return !!(entry?.light || entry?.catalogId === "light");
+  }
+
+  function showPlanLights() {
+    if (ui.tab === "present") return ui.showLights !== false;
+    return ui.showPlanLights !== false;
   }
 
   function showItem(entry) {

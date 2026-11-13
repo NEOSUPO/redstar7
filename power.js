@@ -920,6 +920,9 @@ export function powerPanel(plan, ui) {
       <p class="note">予備 ${counts.spare} 回路。空きマス ${counts.empty}。</p>
     </div>
     ${powerEditor(plan, ui)}
+    <div class="side-block">
+      <label class="check"><input id="show-plan-lights" type="checkbox" ${ui.showPlanLights ? "checked" : ""} /> 照明を表示</label>
+    </div>
   `;
 }
 

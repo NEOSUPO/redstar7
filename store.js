@@ -1,7 +1,7 @@
-﻿import { normalizeEnv } from "./env.js?v=20261111s";
+﻿import { normalizeEnv } from "./env.js?v=20261111t";
 import { ensureRoom, nearestEdge } from "./geometry.js";
 import { migrateOpenings } from "./openings.js?v=20261022f";
-import { normalizePower } from "./power.js?v=20261111s";
+import { normalizePower } from "./power.js?v=20261111t";
 import { clearMissingHosts } from "./surface.js?v=20261028d";
 
 const STORAGE_KEY = "neosupo-star-beta7-plans-v1";

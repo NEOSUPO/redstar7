@@ -277,7 +277,7 @@ async function setMode(next) {
   document.querySelector("#mode-3d").classList.toggle("active", next === "3d");
   document.querySelector("#view-toggle").hidden = next !== "3d";
   if (next === "3d" && !view3d) {
-    const mod = await import("./view3d.js?v=20261111t");
+    const mod = await import("./view3d.js?v=20261111u");
     view3d = mod.createView3d(document.querySelector("#view3d"), store, ui);
     view3d.setSelection(ui.selection);
   }

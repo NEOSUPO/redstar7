@@ -6,10 +6,10 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
 import { lookupItem } from "./catalog.js?v=20261028d";
-import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111t";
+import { flowById, gradeById, pressureMarks } from "./env.js?v=20261111u";
 import { centroid, distanceToBoundary, edgeGeometry, outlinePoints, pointInRoom } from "./geometry.js?v=20261022d";
 import { cutsForWall, hingePoint, leafSwing, openingCenter } from "./openings.js?v=20261022f";
-import { snapValue } from "./store.js?v=20261111t";
+import { snapValue } from "./store.js?v=20261111u";
 import { counterTop, seatItems, shiftGuests } from "./surface.js?v=20261028d";
 
 const BRIGHTNESS = [0.45, 0.85, 1.25];
@@ -1085,12 +1085,19 @@ export function createView3d(canvas, store, ui) {
     }
   }
 
-  function moveWalker(x, z) {
+  function moveWalker(x, z, opts = {}) {
     const body = ensureWalker();
     const dx = x - body.x;
     const dz = z - body.z;
     const dist = Math.hypot(dx, dz);
     if (dist < 1) return;
+    // Mouse drag in report Sky ignores walls/furniture so the figure can be placed freely.
+    if (opts.collide === false) {
+      body.x = x;
+      body.z = z;
+      poseActor();
+      return;
+    }
     const step = 40;
     let cx = body.x;
     let cz = body.z;
@@ -1754,7 +1761,7 @@ export function createView3d(canvas, store, ui) {
       const enabled = plan.settings.snap !== false;
       const x = snapValue(walkerDrag.startX + (point.x - walkerDrag.originX), steps, enabled);
       const z = snapValue(walkerDrag.startZ + (point.z - walkerDrag.originZ), steps, enabled);
-      moveWalker(x, z);
+      moveWalker(x, z, { collide: false });
       return;
     }
     if (slide) {
